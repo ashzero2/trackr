@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as DocumentPicker from 'expo-document-picker';
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -297,7 +297,7 @@ export default function SettingsScreen() {
             icon="map"
             title="Manage trips"
             subtitle="Lifecycle, active trip, daily budgets"
-            onPress={() => router.push('/manage-trips' as unknown as Href)}
+            onPress={() => router.push('/manage-trips')}
           />
           <PressableRow
             icon="build"
@@ -471,13 +471,13 @@ export default function SettingsScreen() {
             icon="category"
             title="Custom categories"
             subtitle="Manage expense and income tags"
-            onPress={() => router.push('/manage-categories' as unknown as Href)}
+            onPress={() => router.push('/manage-categories')}
           />
           <PressableRow
             icon="account-balance-wallet"
             title="Custom budgets"
             subtitle="Set limits for specific spending areas"
-            onPress={() => router.push('/manage-budgets' as unknown as Href)}
+            onPress={() => router.push('/manage-budgets')}
           />
         </Card>
       </Section>

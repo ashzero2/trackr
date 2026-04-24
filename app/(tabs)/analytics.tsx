@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -14,6 +14,7 @@ import {
   bucketLast7LocalDays,
   bucketUtcMonthDailyExpenses,
   compressMonthDailyToWeekBars,
+  computeMonthInsight,
   peakDayLabel,
 } from '@/lib/analytics-buckets';
 import { materialIconNameForCategory } from '@/lib/category-icons';
@@ -83,18 +84,7 @@ export default function AnalyticsScreen() {
       setPeak(peakDayLabel(values, labels));
     }
 
-    const dining = sc.find((c) => c.categoryName.toLowerCase().includes('dining'))?.spentCents ?? 0;
-    const total = s.totalExpenseCents || 1;
-    const ratio = dining / total;
-    if (ratio > 0.15) {
-      setInsight(
-        `Dining makes up about ${Math.round(ratio * 100)}% of this month’s expenses—small tweaks there move the needle fast.`,
-      );
-    } else {
-      setInsight(
-        `You’re logging steadily across categories. Keep recording transactions for sharper forecasts next month.`,
-      );
-    }
+    setInsight(computeMonthInsight(sc, s.totalExpenseCents));
   }, [transactions, budgets, categories, trips, mode]);
 
   useFocusEffect(
@@ -235,7 +225,7 @@ export default function AnalyticsScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Adjust budget limits"
-          onPress={() => router.push('/manage-budgets' as unknown as Href)}
+          onPress={() => router.push('/manage-budgets')}
           style={styles.adjustLimitsHit}>
           <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>Adjust limits</Text>
         </Pressable>

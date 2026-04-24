@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, router, type Href } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -10,9 +10,9 @@ import { ScreenScaffold } from '@/components/screen-scaffold';
 import { TransactionRow } from '@/components/transaction-row';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
-import { SeedCategoryId } from '@/db/seed';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
+import { computeMonthInsight } from '@/lib/analytics-buckets';
 import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
@@ -77,16 +77,10 @@ export default function DashboardScreen() {
     return { name, left, pct, spent, limit };
   }, [budgetRows, byCat]);
 
-  const insightText = useMemo(() => {
-    const total = summary?.totalExpenseCents ?? 0;
-    const dining = byCat.find((c) => c.categoryId === SeedCategoryId.dining)?.spentCents ?? 0;
-    if (total <= 0) return 'Add expenses to unlock personalized insights.';
-    const ratio = dining / total;
-    if (ratio >= 0.12) {
-      return `Dining is about ${Math.round(ratio * 100)}% of your spending this month—worth a look if you’re trimming costs.`;
-    }
-    return `You’re spread across ${byCat.length} spending categories this month. Nice balance.`;
-  }, [summary, byCat]);
+  const insightText = useMemo(
+    () => computeMonthInsight(byCat, summary?.totalExpenseCents ?? 0),
+    [summary, byCat],
+  );
 
   const todayKey = localDayKey(new Date());
   const yest = new Date();
@@ -119,7 +113,7 @@ export default function DashboardScreen() {
       fab={
         <FabGradient
           accessibilityLabel="Add transaction"
-          onPress={() => router.push('/add-transaction' as unknown as Href)}
+          onPress={() => router.push('/add-transaction')}
         />
       }>
       <DashboardHeroCard
@@ -159,7 +153,7 @@ export default function DashboardScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Set up a budget"
-              onPress={() => router.push('/manage-budgets' as unknown as Href)}
+              onPress={() => router.push('/manage-budgets')}
               style={styles.emptyBudgetLink}>
               <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
                 No category budgets yet.
@@ -226,7 +220,7 @@ export default function DashboardScreen() {
                     router.push({
                       pathname: '/add-transaction',
                       params: { id: t.id },
-                    } as unknown as Href)
+                    })
                   }
                 />
               ))}

@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, router, type Href } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -253,7 +253,7 @@ export default function HistoryScreen() {
                   router.push({
                     pathname: '/trip-detail',
                     params: { tripId: t.id, year: String(year), month: String(month) },
-                  } as unknown as Href)
+                  })
                 }
                 style={[styles.tripCard, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <View style={{ flex: 1 }}>
@@ -296,7 +296,7 @@ export default function HistoryScreen() {
                       router.push({
                         pathname: '/add-transaction',
                         params: { id: t.id },
-                      } as unknown as Href)
+                      })
                     }
                   />
                 ))}

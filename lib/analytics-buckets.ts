@@ -32,6 +32,12 @@ export function compressMonthDailyToWeekBars(daily: number[]): { values: number[
 }
 
 export function bucketLast7LocalDays(txs: TransactionWithCategory[]): { values: number[]; labels: string[] } {
+  const sumByDay = new Map<string, number>();
+  for (const t of txs) {
+    if (t.type !== 'expense') continue;
+    const key = parseIsoToLocalDayKey(t.occurredAt);
+    sumByDay.set(key, (sumByDay.get(key) ?? 0) + t.amountCents);
+  }
   const end = new Date();
   end.setHours(23, 59, 59, 999);
   const values: number[] = [];
@@ -40,16 +46,26 @@ export function bucketLast7LocalDays(txs: TransactionWithCategory[]): { values: 
     const d = new Date(end);
     d.setDate(d.getDate() - i);
     d.setHours(0, 0, 0, 0);
-    const key = localDayKey(d);
     labels.push(d.toLocaleDateString(undefined, { weekday: 'short' }));
-    let sum = 0;
-    for (const t of txs) {
-      if (t.type !== 'expense') continue;
-      if (parseIsoToLocalDayKey(t.occurredAt) === key) sum += t.amountCents;
-    }
-    values.push(sum);
+    values.push(sumByDay.get(localDayKey(d)) ?? 0);
   }
   return { values, labels };
+}
+
+/** Returns a plain-English insight based on the top spending category for the month. */
+export function computeMonthInsight(
+  byCat: { categoryName: string; spentCents: number }[],
+  totalExpenseCents: number,
+): string {
+  if (totalExpenseCents <= 0 || byCat.length === 0) {
+    return 'Add expenses to unlock personalized insights.';
+  }
+  const top = byCat.reduce((a, b) => (b.spentCents > a.spentCents ? b : a));
+  const ratio = top.spentCents / totalExpenseCents;
+  if (ratio >= 0.12) {
+    return `${top.categoryName} makes up about ${Math.round(ratio * 100)}% of your spending this month—worth a look if you're trimming costs.`;
+  }
+  return `You're spread across ${byCat.length} spending categories this month. Nice balance.`;
 }
 
 export function peakDayLabel(values: number[], labels: string[]): string | undefined {
