@@ -257,6 +257,29 @@ export default function AddTransactionScreen() {
     }
   };
 
+  const onDelete = () => {
+    if (!editId) return;
+    Alert.alert('Delete transaction?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setSaving(true);
+          try {
+            await transactions.delete(editId);
+            lightImpact();
+            router.back();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Could not delete.');
+          } finally {
+            setSaving(false);
+          }
+        },
+      },
+    ]);
+  };
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.surface }]}>
@@ -313,6 +336,7 @@ export default function AddTransactionScreen() {
           keyboardType="decimal-pad"
           placeholder="0.00"
           placeholderTextColor={colors.onSurfaceVariant}
+          autoFocus={!editId}
           style={[
             styles.input,
             {
@@ -339,23 +363,25 @@ export default function AddTransactionScreen() {
           </Text>
         </Pressable>
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Trip</Text>
         {travelModeEnabled ? (
-          <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12, marginTop: 4 }}>
-            Only ACTIVE trips auto-fill from “Currently tracking”. You can override for each transaction.
-          </Text>
+          <>
+            <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Trip</Text>
+            <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12, marginTop: 4 }}>
+              Only ACTIVE trips auto-fill. You can override for each transaction.
+            </Text>
+            <Pressable
+              accessibilityRole=”button”
+              accessibilityLabel={`Trip ${selectedTripLabel}`}
+              onPress={() => setTripPickerOpen(true)}
+              style={[
+                styles.input,
+                styles.pickerTrigger,
+                { backgroundColor: colors.surfaceContainerLowest },
+              ]}>
+              <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>{selectedTripLabel}</Text>
+            </Pressable>
+          </>
         ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Trip ${selectedTripLabel}`}
-          onPress={() => setTripPickerOpen(true)}
-          style={[
-            styles.input,
-            styles.pickerTrigger,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}>
-          <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>{selectedTripLabel}</Text>
-        </Pressable>
 
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Merchant / note</Text>
         <TextInput
@@ -450,6 +476,19 @@ export default function AddTransactionScreen() {
             </Pressable>
           ))}
         </View>
+
+        {editId ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete transaction"
+            onPress={onDelete}
+            disabled={saving}
+            style={[styles.deleteBtn, { borderColor: colors.error, opacity: saving ? 0.5 : 1 }]}>
+            <Text style={[styles.deleteText, { color: colors.error, fontFamily: labelFont }]}>
+              Delete transaction
+            </Text>
+          </Pressable>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -639,8 +678,21 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     justifyContent: 'center',
   },
-  saveBtn: {
+  deleteBtn: {
     marginTop: 28,
+    borderRadius: 999,
+    minHeight: MIN_TOUCH_TARGET,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  deleteText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  saveBtn: {
+    marginTop: 12,
     borderRadius: 999,
     minHeight: MIN_TOUCH_TARGET,
     paddingVertical: 16,

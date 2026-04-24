@@ -33,7 +33,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="ai"
         options={{
-          title: 'Exbot',
+          title: 'AI',
         }}
       />
       <Tabs.Screen

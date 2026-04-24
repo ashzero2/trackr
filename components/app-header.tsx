@@ -1,18 +1,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { headlineFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { TravelTrackingBanner } from '@/components/travel-tracking-banner';
 import { greetingForSession } from '@/lib/greetings';
 
-type AppHeaderProps = {
-  onNotificationsPress?: () => void;
-};
+type AppHeaderProps = Record<string, never>;
 
 function initialsFromName(name: string): string {
   const parts = name
@@ -24,7 +21,7 @@ function initialsFromName(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
+export function AppHeader(_props: AppHeaderProps) {
   const { colors } = useAppColors();
   const { displayName, petAvatarUrl } = useUserProfile();
   const titleColor = colors.primary;
@@ -69,15 +66,6 @@ export function AppHeader({ onNotificationsPress }: AppHeaderProps) {
             {greeting}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Notifications"
-          onPress={() => {
-            void onNotificationsPress?.();
-          }}
-          style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}>
-          <MaterialIcons name="notifications-none" size={24} color={titleColor} />
-        </Pressable>
       </View>
       <TravelTrackingBanner />
     </View>
@@ -126,13 +114,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.3,
     flex: 1,
-  },
-  iconButton: {
-    minWidth: MIN_TOUCH_TARGET,
-    minHeight: MIN_TOUCH_TARGET,
-    padding: 8,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

@@ -156,9 +156,18 @@ export default function DashboardScreen() {
               </View>
             </>
           ) : (
-            <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              Add category budgets from Analytics to track limits here.
-            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Set up a budget"
+              onPress={() => router.push('/manage-budgets' as unknown as Href)}
+              style={styles.emptyBudgetLink}>
+              <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                No category budgets yet.
+              </Text>
+              <Text style={[styles.bentoHint, { color: colors.primary, fontFamily: bodyFont, fontWeight: '700', marginTop: 4 }]}>
+                Set up a budget →
+              </Text>
+            </Pressable>
           )}
         </View>
 
@@ -189,6 +198,14 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.activityGap}>
+        {groupedRecent.length === 0 && (
+          <View style={[styles.emptyState, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <MaterialIcons name="receipt-long" size={36} color={colors.onSurfaceVariant} />
+            <Text style={[styles.emptyStateText, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+              No transactions yet. Tap + to add your first one.
+            </Text>
+          </View>
+        )}
         {groupedRecent.map(({ dayKey, items }) => (
           <View key={dayKey} style={styles.dayBlock}>
             <View style={styles.dayHeader}>
@@ -317,5 +334,19 @@ const styles = StyleSheet.create({
   dayTotal: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  emptyBudgetLink: {
+    flex: 1,
+  },
+  emptyState: {
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
 });

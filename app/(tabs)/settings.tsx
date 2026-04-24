@@ -221,20 +221,7 @@ export default function SettingsScreen() {
               colors={colors}
             />
           </View>
-          <Row
-            icon="palette"
-            iconBg={colors.surfaceContainerLowest}
-            title="Color mode"
-            subtitle="Light or dark theme"
-            right={
-              <Switch
-                value={scheme === 'dark'}
-                onValueChange={(v) => setThemePreference(v ? 'dark' : 'light')}
-                trackColor={{ false: colors.outlineVariant, true: colors.primaryContainer }}
-                thumbColor={scheme === 'dark' ? colors.primary : colors.surfaceContainerLowest}
-              />
-            }
-          />
+          <ThemeRow />
         </Card>
       </Section>
 
@@ -596,6 +583,53 @@ function PressableRow({
   );
 }
 
+const THEME_OPTIONS: { label: string; value: import('@/contexts/color-scheme-context').ThemePreference }[] = [
+  { label: 'Light', value: 'light' },
+  { label: 'System', value: 'system' },
+  { label: 'Dark', value: 'dark' },
+];
+
+function ThemeRow() {
+  const { colors, themePreference, setThemePreference } = useAppColors();
+  return (
+    <View style={styles.rowInner}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+        <MaterialIcons name="palette" size={22} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Color mode</Text>
+        <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+          Light, system default, or dark
+        </Text>
+      </View>
+      <View style={[styles.themeSegment, { backgroundColor: colors.surfaceContainerHighest }]}>
+        {THEME_OPTIONS.map((opt) => {
+          const active = themePreference === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${opt.label} theme`}
+              onPress={() => void setThemePreference(opt.value)}
+              style={[styles.themeChip, active && { backgroundColor: colors.primary }]}>
+              <Text
+                style={{
+                  fontFamily: labelFont,
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: active ? colors.onPrimary : colors.onSurfaceVariant,
+                }}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   loader: {
     paddingVertical: 40,
@@ -730,6 +764,19 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     marginTop: 8,
+    alignItems: 'center',
+  },
+  themeSegment: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    padding: 3,
+    gap: 2,
+  },
+  themeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    minWidth: 44,
     alignItems: 'center',
   },
 });
