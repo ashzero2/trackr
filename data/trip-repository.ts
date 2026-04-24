@@ -88,6 +88,19 @@ export class TripRepository {
     );
   }
 
+  async rename(id: string, name: string): Promise<void> {
+    await this.db.runAsync(`UPDATE trips SET name = ? WHERE id = ?`, [name.trim(), id]);
+  }
+
+  /** Deletes a trip and nullifies its trip_id on any linked transactions. */
+  async delete(id: string): Promise<void> {
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(`UPDATE transactions SET trip_id = NULL WHERE trip_id = ?`, [id]);
+      await this.db.runAsync(`DELETE FROM trip_summaries WHERE trip_id = ?`, [id]);
+      await this.db.runAsync(`DELETE FROM trips WHERE id = ?`, [id]);
+    });
+  }
+
   async demoteOtherActiveTrips(keepId: string): Promise<void> {
     await this.db.runAsync(`UPDATE trips SET status = 'PLANNED' WHERE status = 'ACTIVE' AND id != ?`, [keepId]);
   }

@@ -370,7 +370,7 @@ export default function AddTransactionScreen() {
               Only ACTIVE trips auto-fill. You can override for each transaction.
             </Text>
             <Pressable
-              accessibilityRole=”button”
+              accessibilityRole="button"
               accessibilityLabel={`Trip ${selectedTripLabel}`}
               onPress={() => setTripPickerOpen(true)}
               style={[

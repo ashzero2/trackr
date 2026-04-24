@@ -235,12 +235,6 @@ export default function AiScreen() {
   };
 
   const onPickFile = async () => {
-    if (!apiKey || !modelId) {
-      Alert.alert('Gemini API key', 'Add your key under Settings to use smart CSV mapping when needed.', [
-        { text: 'Settings', onPress: () => router.push('/(tabs)/settings' as Href) },
-        { text: 'OK', style: 'cancel' },
-      ]);
-    }
     const r = repos;
     if (!r) {
       Alert.alert('Not ready', 'Database is still loading.');
@@ -324,6 +318,22 @@ export default function AiScreen() {
         <Text style={[styles.subtitle, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
           {EXBOT_NAME} — your spending and import helper (Trackr only).
         </Text>
+        {lines.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear chat"
+            onPress={() => {
+              setLines([]);
+              setApiContents([]);
+              setPendingRows(null);
+            }}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              { backgroundColor: pressed ? colors.surfaceContainerHigh : colors.surfaceContainerLow },
+            ]}>
+            <MaterialIcons name="delete-sweep" size={22} color={colors.onSurfaceVariant} />
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Import file"

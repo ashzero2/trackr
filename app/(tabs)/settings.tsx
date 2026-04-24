@@ -29,6 +29,7 @@ import {
   setGeminiApiKey,
   setGeminiModelId,
 } from '@/lib/ai-settings';
+import { geminiGenerateContent } from '@/lib/gemini-client';
 import {
   importTransactionRows,
   parseTransactionImportJson,
@@ -406,27 +407,57 @@ export default function SettingsScreen() {
                 <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Save</Text>
               </Pressable>
               {geminiHasKey ? (
-                <Pressable
-                  onPress={() => {
-                    Alert.alert('Remove API key?', 'Exbot will stay disabled until you add a key again.', [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: async () => {
-                          try {
-                            await setGeminiApiKey(null);
-                            setGeminiHasKey(false);
-                          } catch (e) {
-                            Alert.alert('Error', e instanceof Error ? e.message : 'Could not remove.');
-                          }
+                <>
+                  <Pressable
+                    onPress={async () => {
+                      const key = await getGeminiApiKey();
+                      const model = await getGeminiModelId();
+                      if (!key?.trim()) {
+                        Alert.alert('No key saved', 'Paste and save a key first.');
+                        return;
+                      }
+                      setBusy(true);
+                      try {
+                        const result = await geminiGenerateContent(key, model, {
+                          contents: [{ role: 'user', parts: [{ text: 'Reply with just the word: ok' }] }],
+                        });
+                        if (result.ok) {
+                          Alert.alert('Connected ✓', `Model "${model}" responded successfully.`);
+                        } else {
+                          Alert.alert('Connection failed', result.error);
+                        }
+                      } catch (e) {
+                        Alert.alert('Connection failed', e instanceof Error ? e.message : 'Unknown error');
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    disabled={busy}
+                    style={[styles.nameGhost, { borderColor: colors.outlineVariant, opacity: busy ? 0.5 : 1 }]}>
+                    <Text style={{ color: colors.primary, fontFamily: labelFont }}>Test connection</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Alert.alert('Remove API key?', 'Exbot will stay disabled until you add a key again.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Remove',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await setGeminiApiKey(null);
+                              setGeminiHasKey(false);
+                            } catch (e) {
+                              Alert.alert('Error', e instanceof Error ? e.message : 'Could not remove.');
+                            }
+                          },
                         },
-                      },
-                    ]);
-                  }}
-                  style={[styles.nameGhost, { borderColor: colors.outlineVariant }]}>
-                  <Text style={{ color: colors.error, fontFamily: labelFont }}>Remove key</Text>
-                </Pressable>
+                      ]);
+                    }}
+                    style={[styles.nameGhost, { borderColor: colors.outlineVariant }]}>
+                    <Text style={{ color: colors.error, fontFamily: labelFont }}>Remove key</Text>
+                  </Pressable>
+                </>
               ) : null}
             </View>
           </View>

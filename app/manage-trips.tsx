@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Crypto from 'expo-crypto';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -43,6 +44,11 @@ export default function ManageTripsScreen() {
   const [loading, setLoading] = useState(true);
   const [budgetTripId, setBudgetTripId] = useState<string | null>(null);
   const [budgetText, setBudgetText] = useState('');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newTripName, setNewTripName] = useState('');
+  const [renameTrip, setRenameTrip] = useState<Trip | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +101,62 @@ export default function ManageTripsScreen() {
     await load();
   };
 
+  const onCreateTrip = async () => {
+    const name = newTripName.trim();
+    if (!name) { Alert.alert('Name required', 'Enter a name for this trip.'); return; }
+    setSaving(true);
+    try {
+      const id = await Crypto.randomUUID();
+      await trips.insert({ id, name, startAt: new Date().toISOString(), endAt: null, status: 'PLANNED', metadata: null });
+      setCreateModalOpen(false);
+      setNewTripName('');
+      await load();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not create trip.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onRenameTrip = async () => {
+    if (!renameTrip) return;
+    const name = renameDraft.trim();
+    if (!name) { Alert.alert('Name required', 'Enter a name for this trip.'); return; }
+    setSaving(true);
+    try {
+      await trips.rename(renameTrip.id, name);
+      setRenameTrip(null);
+      await load();
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not rename trip.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onDeleteTrip = (t: Trip) => {
+    Alert.alert(
+      `Delete "${t.name}"?`,
+      'The trip is removed. Linked transactions are kept but will no longer be associated with it.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (activeTripId === t.id) await setProfile({ activeTripId: null });
+              await trips.delete(t.id);
+              await load();
+            } catch (e) {
+              Alert.alert('Error', e instanceof Error ? e.message : 'Could not delete trip.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.surface }]} edges={['top']}>
       <AppHeader />
@@ -109,7 +171,17 @@ export default function ManageTripsScreen() {
           <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>Back</Text>
         </Pressable>
-        <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>Trips</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>Trips</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create new trip"
+            onPress={() => { setNewTripName(''); setCreateModalOpen(true); }}
+            style={[styles.newTripBtn, { backgroundColor: colors.primary }]}>
+            <MaterialIcons name="add" size={18} color={colors.onPrimary} />
+            <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700', fontSize: 13 }}>New trip</Text>
+          </Pressable>
+        </View>
         <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
           Only one trip can be ACTIVE. New expenses default to your active trip when Travel mode is on.
         </Text>
@@ -132,6 +204,22 @@ export default function ManageTripsScreen() {
                       {STATUS_LABELS[t.status]}
                       {activeTripId === t.id ? ' · currently tracking' : ''}
                     </Text>
+                  </View>
+                  <View style={styles.cardActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Rename ${t.name}`}
+                      onPress={() => { setRenameTrip(t); setRenameDraft(t.name); }}
+                      style={styles.cardIconBtn}>
+                      <MaterialIcons name="edit" size={18} color={colors.onSurfaceVariant} />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${t.name}`}
+                      onPress={() => onDeleteTrip(t)}
+                      style={styles.cardIconBtn}>
+                      <MaterialIcons name="delete-outline" size={18} color={colors.error} />
+                    </Pressable>
                   </View>
                 </View>
                 <View style={styles.actions}>
@@ -205,6 +293,66 @@ export default function ManageTripsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal visible={createModalOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setCreateModalOpen(false)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+              New trip
+            </Text>
+            <TextInput
+              value={newTripName}
+              onChangeText={setNewTripName}
+              placeholder="e.g. Tokyo spring"
+              placeholderTextColor={colors.onSurfaceVariant}
+              autoFocus
+              style={[styles.input, { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont }]}
+            />
+            <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'flex-end', marginTop: 16 }}>
+              <Pressable onPress={() => setCreateModalOpen(false)} style={styles.ghost}>
+                <Text style={{ fontFamily: labelFont, color: colors.onSurface }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void onCreateTrip()}
+                disabled={saving}
+                style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}>
+                <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Create</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={renameTrip !== null} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setRenameTrip(null)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+              Rename trip
+            </Text>
+            <TextInput
+              value={renameDraft}
+              onChangeText={setRenameDraft}
+              placeholderTextColor={colors.onSurfaceVariant}
+              autoFocus
+              style={[styles.input, { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont }]}
+            />
+            <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'flex-end', marginTop: 16 }}>
+              <Pressable onPress={() => setRenameTrip(null)} style={styles.ghost}>
+                <Text style={{ fontFamily: labelFont, color: colors.onSurface }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void onRenameTrip()}
+                disabled={saving}
+                style={[styles.primaryBtn, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}>
+                <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Save</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -232,8 +380,35 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  newTripBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    minHeight: MIN_TOUCH_TARGET,
+  },
   cardTop: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 4,
+    marginLeft: 8,
+  },
+  cardIconBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
   },
   actions: {
     flexDirection: 'row',
