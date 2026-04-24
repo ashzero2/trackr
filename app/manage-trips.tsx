@@ -26,6 +26,13 @@ import type { Trip, TripStatus } from '@/types/finance';
 
 const STATUSES: TripStatus[] = ['PLANNED', 'ACTIVE', 'COMPLETED', 'ARCHIVED'];
 
+const STATUS_LABELS: Record<TripStatus, string> = {
+  PLANNED: 'Planned',
+  ACTIVE: 'Active',
+  COMPLETED: 'Done',
+  ARCHIVED: 'Archived',
+};
+
 export default function ManageTripsScreen() {
   const router = useRouter();
   const { colors } = useAppColors();
@@ -112,57 +119,57 @@ export default function ManageTripsScreen() {
         ) : rows.length === 0 ? (
           <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant }}>No trips yet.</Text>
         ) : (
-          rows.map((t) => (
-            <View key={t.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLow }]}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: headlineFont, fontWeight: '800', color: colors.onSurface }}>
-                    {t.name}
-                  </Text>
-                  <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant, marginTop: 4 }}>
-                    {t.status}
-                    {activeTripId === t.id ? ' · currently tracking' : ''}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.actions}>
-                {STATUSES.map((s) => (
-                  <Pressable
-                    key={s}
-                    onPress={() => void onSetStatus(t.id, s)}
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: t.status === s ? colors.primary : colors.surfaceContainerHighest,
-                      },
-                    ]}>
-                    <Text
-                      style={{
-                        fontFamily: labelFont,
-                        fontSize: 11,
-                        fontWeight: '700',
-                        color: t.status === s ? colors.onPrimary : colors.onSurfaceVariant,
-                      }}>
-                      {s.slice(0, 4)}
+          rows.map((t) => {
+            const meta = parseTripMetadata(t.metadata);
+            return (
+              <View key={t.id} style={[styles.card, { backgroundColor: colors.surfaceContainerLow }]}>
+                <View style={styles.cardTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: headlineFont, fontWeight: '800', color: colors.onSurface }}>
+                      {t.name}
                     </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Pressable onPress={() => openBudget(t)} style={styles.budgetBtn}>
-                <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>
-                  Daily budget…
-                </Text>
-              </Pressable>
-              {(() => {
-                const m = parseTripMetadata(t.metadata);
-                return m.dailyBudgetCents ? (
-                  <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant, marginTop: 6 }}>
-                    Budget: {format(m.dailyBudgetCents)} / day
+                    <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant, marginTop: 4 }}>
+                      {STATUS_LABELS[t.status]}
+                      {activeTripId === t.id ? ' · currently tracking' : ''}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.actions}>
+                  {STATUSES.map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => void onSetStatus(t.id, s)}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: t.status === s ? colors.primary : colors.surfaceContainerHighest,
+                        },
+                      ]}>
+                      <Text
+                        style={{
+                          fontFamily: labelFont,
+                          fontSize: 11,
+                          fontWeight: '700',
+                          color: t.status === s ? colors.onPrimary : colors.onSurfaceVariant,
+                        }}>
+                        {STATUS_LABELS[s]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Pressable onPress={() => openBudget(t)} style={styles.budgetBtn}>
+                  <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>
+                    Daily budget…
                   </Text>
-                ) : null;
-              })()}
-            </View>
-          ))
+                </Pressable>
+                {meta.dailyBudgetCents ? (
+                  <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant, marginTop: 6 }}>
+                    Budget: {format(meta.dailyBudgetCents)} / day
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })
         )}
       </ScrollView>
 

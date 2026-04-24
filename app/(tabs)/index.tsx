@@ -13,27 +13,13 @@ import { useDatabase } from '@/contexts/database-context';
 import { SeedCategoryId } from '@/db/seed';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { addUtcMonths, formatDaySectionTitle, localDayKey, parseIsoToLocalDayKey } from '@/lib/dates';
+import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
+import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
 
 function utcYearMonth(): { y: number; m: number } {
   const n = new Date();
   return { y: n.getUTCFullYear(), m: n.getUTCMonth() + 1 };
-}
-
-function groupByLocalDay(items: TransactionWithCategory[]): { dayKey: string; items: TransactionWithCategory[] }[] {
-  const map = new Map<string, TransactionWithCategory[]>();
-  for (const t of items) {
-    const k = parseIsoToLocalDayKey(t.occurredAt);
-    if (!map.has(k)) map.set(k, []);
-    map.get(k)!.push(t);
-  }
-  const keys = [...map.keys()].sort((a, b) => (a > b ? -1 : 1));
-  return keys.map((dayKey) => ({ dayKey, items: map.get(dayKey)! }));
-}
-
-function dayExpenseTotal(items: TransactionWithCategory[]): number {
-  return items.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amountCents, 0);
 }
 
 export default function DashboardScreen() {
@@ -74,7 +60,8 @@ export default function DashboardScreen() {
 
   const vsLastMonthPercent = useMemo(() => {
     if (!summary || !prevSummary) return null;
-    const prev = prevSummary.totalExpenseCents || 1;
+    const prev = prevSummary.totalExpenseCents;
+    if (prev === 0) return null;
     const cur = summary.totalExpenseCents;
     return Math.round(((cur - prev) / prev) * 100);
   }, [summary, prevSummary]);

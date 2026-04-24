@@ -20,24 +20,10 @@ import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
-import { daysInUtcMonth, formatDaySectionTitle, localDayKey, monthName, parseIsoToLocalDayKey, utcCalendarMonthNow } from '@/lib/dates';
+import { elapsedDaysInUtcMonth, formatDaySectionTitle, localDayKey, monthName, utcCalendarMonthNow } from '@/lib/dates';
+import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import type { TransactionWithCategory, TripMonthActivity } from '@/types/finance';
-
-function groupByLocalDay(items: TransactionWithCategory[]): { dayKey: string; items: TransactionWithCategory[] }[] {
-  const map = new Map<string, TransactionWithCategory[]>();
-  for (const t of items) {
-    const k = parseIsoToLocalDayKey(t.occurredAt);
-    if (!map.has(k)) map.set(k, []);
-    map.get(k)!.push(t);
-  }
-  const keys = [...map.keys()].sort((a, b) => (a > b ? -1 : 1));
-  return keys.map((dayKey) => ({ dayKey, items: map.get(dayKey)! }));
-}
-
-function dayExpenseTotal(items: TransactionWithCategory[]): number {
-  return items.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amountCents, 0);
-}
 
 function matchesQuery(t: TransactionWithCategory, q: string): boolean {
   if (!q.trim()) return true;
@@ -100,12 +86,11 @@ export default function HistoryScreen() {
   );
 
   const displayExpense = segment === 'other' ? totalExpense : tripsMonthExpense;
-  const displayAvgBase = segment === 'other' ? totalExpense : tripsMonthExpense;
 
   const avgDaily = useMemo(() => {
-    const dim = daysInUtcMonth(year, month);
-    return dim > 0 ? Math.round(displayAvgBase / dim) : 0;
-  }, [displayAvgBase, year, month]);
+    const elapsed = elapsedDaysInUtcMonth(year, month);
+    return elapsed > 0 ? Math.round(displayExpense / elapsed) : 0;
+  }, [displayExpense, year, month]);
 
   const grouped = useMemo(() => groupByLocalDay(filtered), [filtered]);
 
@@ -208,7 +193,7 @@ export default function HistoryScreen() {
                 fontSize: 13,
                 color: segment === seg ? colors.onPrimaryContainer : colors.onSurfaceVariant,
               }}>
-              {seg === 'other' ? 'Other expenses' : 'Trips'}
+              {seg === 'other' ? 'Everyday' : 'Trips'}
             </Text>
           </Pressable>
         ))}
@@ -287,7 +272,7 @@ export default function HistoryScreen() {
           )
         ) : grouped.length === 0 ? (
           <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont }}>
-            No everyday (non-trip) transactions this month.
+            No everyday transactions this month.
           </Text>
         ) : (
           grouped.map(({ dayKey, items }) => (

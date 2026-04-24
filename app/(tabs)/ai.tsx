@@ -31,7 +31,7 @@ import { mapCsvWithGemini } from '@/lib/gemini-csv-map';
 import { tryParseBankOrWalletCsv } from '@/lib/import-csv';
 import { importTransactionRows, readDocumentPickerAssetAsText, type ParsedImportRow } from '@/lib/transaction-json';
 
-const TAB_BAR_EXTRA = 96;
+import { TAB_BAR_EXTRA } from '@/constants/layout';
 
 const EXBOT_NAME = 'Exbot';
 

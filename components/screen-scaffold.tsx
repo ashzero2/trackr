@@ -3,9 +3,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
 import { useAppColors } from '@/contexts/color-scheme-context';
+import { TAB_BAR_EXTRA } from '@/constants/layout';
 import { bodyFont, headlineFont } from '@/constants/typography';
-
-const TAB_BAR_EXTRA = 96;
 
 type ScreenScaffoldProps = {
   children: React.ReactNode;

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { TripRepository } from '@/data/trip-repository';
+import { monthRangeUtc } from '@/lib/dates';
 import { parsePaymentMethod } from '@/lib/payment-method';
 import type {
   MonthSummaryTypeTotalRow,
@@ -12,12 +13,6 @@ import type { MonthSummary, Transaction, TransactionWithCategory } from '@/types
 
 const TX_SELECT = `t.id, t.amount_cents, t.type, t.category_id, t.occurred_at, t.note, t.payment_method, t.created_at,
   t.trip_id, t.currency_code, t.amount_base_cents, t.exchange_rate_to_base`;
-
-function monthRangeUtc(year: number, month: number): { start: string; end: string } {
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-  return { start: start.toISOString(), end: end.toISOString() };
-}
 
 function mapTx(row: TransactionSqlRow): Transaction {
   return {

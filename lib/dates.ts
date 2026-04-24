@@ -57,3 +57,18 @@ export function addUtcMonths(year: number, month: number, delta: number): { year
 export function formatTimeShort(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+
+export function monthRangeUtc(year: number, month: number): { start: string; end: string } {
+  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/** Days elapsed so far in a UTC month (capped to days in month). */
+export function elapsedDaysInUtcMonth(year: number, month: number): number {
+  const now = new Date();
+  const nowYear = now.getUTCFullYear();
+  const nowMonth = now.getUTCMonth() + 1;
+  if (year !== nowYear || month !== nowMonth) return daysInUtcMonth(year, month);
+  return Math.max(1, now.getUTCDate());
+}

@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { type Href, router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SpendingTrendChart } from '@/components/spending-trend-chart';
@@ -18,14 +18,8 @@ import {
 } from '@/lib/analytics-buckets';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { utcCalendarMonthNow } from '@/lib/dates';
+import { monthRangeUtc, utcCalendarMonthNow } from '@/lib/dates';
 import type { Budget, Category, MonthSummary } from '@/types/finance';
-
-function monthRangeUtc(year: number, month: number): { start: string; end: string } {
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-  return { start: start.toISOString(), end: end.toISOString() };
-}
 
 export default function AnalyticsScreen() {
   const { colors } = useAppColors();
@@ -108,6 +102,12 @@ export default function AnalyticsScreen() {
       if (ready && transactions && budgets && categories && trips) load();
     }, [ready, transactions, budgets, categories, trips, load]),
   );
+
+  // Re-runs whenever `load` ref changes — which happens when `mode` changes,
+  // since mode is in load's useCallback deps. This ensures chart data reloads
+  // when the user toggles week/month while already on this screen.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [load]);
 
   const catIcon = useCallback(
     (categoryId: string | null) => {

@@ -22,11 +22,12 @@ export function DashboardHeroCard({
 }: DashboardHeroCardProps) {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
-  const savingsCents = Math.max(0, monthlyIncomeCents - monthlyExpenseCents);
+  const netCents = monthlyIncomeCents - monthlyExpenseCents;
+  const isDeficit = netCents < 0;
 
   const spendLabel = loading ? '…' : format(monthlyExpenseCents);
   const incomeLabel = loading ? '…' : format(monthlyIncomeCents);
-  const savingsLabel = loading ? '…' : format(savingsCents);
+  const netLabel = loading ? '…' : (isDeficit ? `-${format(Math.abs(netCents))}` : format(netCents));
 
   const trendUp = vsLastMonthPercent !== null && vsLastMonthPercent >= 0;
   const trendLabel =
@@ -74,10 +75,10 @@ export function DashboardHeroCard({
         </View>
         <View style={styles.mini}>
           <Text style={[styles.miniLabel, { color: colors.onPrimary }, styles.miniLabelOpacity]}>
-            Savings
+            {isDeficit ? 'Deficit' : 'Savings'}
           </Text>
           <Text style={[styles.miniValue, { color: colors.onPrimary, fontFamily: displayFont }]}>
-            {savingsLabel}
+            {netLabel}
           </Text>
         </View>
       </View>
