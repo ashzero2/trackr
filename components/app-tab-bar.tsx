@@ -12,6 +12,7 @@ const TAB_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   index: 'dashboard',
   history: 'history',
   analytics: 'analytics',
+  ai: 'auto-awesome',
   settings: 'settings',
 };
 

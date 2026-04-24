@@ -5,6 +5,7 @@ import { useAppColors } from '@/contexts/color-scheme-context';
 import { bodyFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { materialIconNameForCategory } from '@/lib/category-icons';
+import { formatPaymentMethodLabel } from '@/lib/payment-method';
 import type { TransactionWithCategory } from '@/types/finance';
 
 type TransactionRowProps = {
@@ -42,7 +43,7 @@ export function TransactionRow({ transaction, subtitle, onPress, dense }: Transa
         </Text>
         <View style={[styles.chip, { backgroundColor: colors.surfaceContainerHighest }]}>
           <Text style={[styles.chipText, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-            {transaction.paymentMethod}
+            {formatPaymentMethodLabel(transaction.paymentMethod)}
           </Text>
         </View>
       </View>

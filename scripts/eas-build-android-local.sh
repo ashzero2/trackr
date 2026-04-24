@@ -48,4 +48,5 @@ fi
 
 export JAVA_HOME="${JAVA_HOME_RESOLVED}"
 echo "Using JAVA_HOME=${JAVA_HOME}"
-exec npx eas build --platform android --profile preview --local "$@"
+# exec npx eas build --platform android --profile preview --local "$@"
+

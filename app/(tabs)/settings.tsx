@@ -23,6 +23,13 @@ import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { transactionsToCsv } from '@/lib/export-csv';
 import {
+  DEFAULT_GEMINI_MODEL,
+  getGeminiApiKey,
+  getGeminiModelId,
+  setGeminiApiKey,
+  setGeminiModelId,
+} from '@/lib/ai-settings';
+import {
   importTransactionRows,
   parseTransactionImportJson,
   readDocumentPickerAssetAsText,
@@ -31,15 +38,24 @@ import {
 
 export default function SettingsScreen() {
   const { colors, scheme, setThemePreference } = useAppColors();
-  const { displayName, currencyCode, setProfile } = useUserProfile();
-  const { ready, error, db, categories, transactions } = useDatabase();
+  const { displayName, currencyCode, setProfile, travelModeEnabled, activeTripId } = useUserProfile();
+  const { ready, error, db, categories, transactions, trips } = useDatabase();
   const [busy, setBusy] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
+  const [geminiKeyDraft, setGeminiKeyDraft] = useState('');
+  const [geminiHasKey, setGeminiHasKey] = useState(false);
+  const [geminiModelDraft, setGeminiModelDraft] = useState(DEFAULT_GEMINI_MODEL);
+  const [exbotSectionOpen, setExbotSectionOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      // no-op: tab focus
+      void (async () => {
+        const k = await getGeminiApiKey();
+        setGeminiHasKey(Boolean(k?.trim()));
+        setGeminiKeyDraft('');
+        setGeminiModelDraft(await getGeminiModelId());
+      })();
     }, []),
   );
 
@@ -61,11 +77,11 @@ export default function SettingsScreen() {
   };
 
   const onExportJson = async () => {
-    if (!transactions) return;
+    if (!transactions || !trips) return;
     setBusy(true);
     try {
-      const rows = await transactions.listAllWithCategory();
-      const json = serializeTransactionsJson(rows, currencyCode);
+      const [rows, tripList] = await Promise.all([transactions.listAllWithCategory(), trips.listAll()]);
+      const json = serializeTransactionsJson(tripList, rows, currencyCode);
       await Share.share({
         message: json,
         title: 'Trackr backup',
@@ -78,7 +94,7 @@ export default function SettingsScreen() {
   };
 
   const onImportJson = async () => {
-    if (!db || !categories || !transactions) return;
+    if (!db || !categories || !transactions || !trips) return;
     try {
       const pick = await DocumentPicker.getDocumentAsync({
         type: ['application/json', 'text/plain'],
@@ -107,7 +123,7 @@ export default function SettingsScreen() {
             onPress: async () => {
               setBusy(true);
               try {
-                await importTransactionRows(db, categories, transactions, parsed.rows);
+                await importTransactionRows(db, categories, trips, transactions, parsed.trips, parsed.rows);
                 Alert.alert('Done', `Imported ${n} transaction(s).`);
               } catch (e) {
                 Alert.alert('Import failed', e instanceof Error ? e.message : 'Unknown error');
@@ -157,7 +173,7 @@ export default function SettingsScreen() {
     );
   }
 
-  if (!ready || !transactions || !db || !categories) {
+  if (!ready || !transactions || !db || !categories || !trips) {
     return (
       <ScreenScaffold subtitle="Configure your financial workspace">
         <View style={styles.loader}>
@@ -171,7 +187,7 @@ export default function SettingsScreen() {
     <ScreenScaffold subtitle="Configure your financial workspace">
       <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>Settings</Text>
 
-      <Section title="Profile">
+      <Section title="Account & display">
         <Card divided>
           <PressableRow
             icon="person"
@@ -205,6 +221,20 @@ export default function SettingsScreen() {
               colors={colors}
             />
           </View>
+          <Row
+            icon="palette"
+            iconBg={colors.surfaceContainerLowest}
+            title="Color mode"
+            subtitle="Light or dark theme"
+            right={
+              <Switch
+                value={scheme === 'dark'}
+                onValueChange={(v) => setThemePreference(v ? 'dark' : 'light')}
+                trackColor={{ false: colors.outlineVariant, true: colors.primaryContainer }}
+                thumbColor={scheme === 'dark' ? colors.primary : colors.surfaceContainerLowest}
+              />
+            }
+          />
         </Card>
       </Section>
 
@@ -255,22 +285,165 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
-      <Section title="Appearance">
-        <Card>
+      <Section title="Travel">
+        <Card divided>
           <Row
-            icon="palette"
+            icon="flight"
             iconBg={colors.surfaceContainerLowest}
-            title="Color mode"
-            subtitle="Switch between light and dark themes"
+            title="Travel mode"
+            subtitle={
+              activeTripId
+                ? 'Banner shows which trip receives quick-add defaults when the trip is ACTIVE.'
+                : 'Turn on to show trip tracking banner and trip analytics sections.'
+            }
             right={
               <Switch
-                value={scheme === 'dark'}
-                onValueChange={(v) => setThemePreference(v ? 'dark' : 'light')}
+                value={travelModeEnabled}
+                onValueChange={(v) => void setProfile({ travelModeEnabled: v })}
                 trackColor={{ false: colors.outlineVariant, true: colors.primaryContainer }}
-                thumbColor={scheme === 'dark' ? colors.primary : colors.surfaceContainerLowest}
+                thumbColor={travelModeEnabled ? colors.primary : colors.surfaceContainerLowest}
               />
             }
           />
+          <PressableRow
+            icon="map"
+            title="Manage trips"
+            subtitle="Lifecycle, active trip, daily budgets"
+            onPress={() => router.push('/manage-trips' as unknown as Href)}
+          />
+          <PressableRow
+            icon="build"
+            title="Repair trip summaries"
+            subtitle="Rebuild cached totals if anything looks off"
+            onPress={async () => {
+              setBusy(true);
+              try {
+                await trips.recomputeAllTripSummaries();
+                Alert.alert('Done', 'Trip summaries were recalculated.');
+              } catch (e) {
+                Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
+              } finally {
+                setBusy(false);
+              }
+            }}
+            disabled={busy}
+          />
+        </Card>
+      </Section>
+
+      <Section title="Exbot">
+        <Card divided>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: exbotSectionOpen }}
+            accessibilityLabel="Exbot Gemini settings"
+            onPress={() => setExbotSectionOpen((o) => !o)}
+            style={({ pressed }) => [
+              styles.exbotHeaderRow,
+              { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+            ]}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+              <MaterialIcons name="auto-awesome" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Google Gemini</Text>
+              <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                {geminiHasKey ? 'API key saved on this device' : 'Not configured — tap to add a key'}
+              </Text>
+            </View>
+            <MaterialIcons
+              name={exbotSectionOpen ? 'expand-less' : 'expand-more'}
+              size={28}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+          {exbotSectionOpen ? (
+          <View style={styles.geminiBlock}>
+            <Text style={[styles.geminiHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+              Exbot uses your key from Google AI Studio. Chat and smart import send prompts and file snippets to
+              Google’s Gemini API. The key stays on this device.
+            </Text>
+            <Text style={[styles.profileCurrencyLbl, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+              API key
+            </Text>
+            <Text style={[styles.geminiKeyStatus, { color: colors.onSurface, fontFamily: bodyFont }]}>
+              {geminiHasKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.'}
+            </Text>
+            <TextInput
+              value={geminiKeyDraft}
+              onChangeText={setGeminiKeyDraft}
+              placeholder="Paste Gemini API key"
+              placeholderTextColor={colors.onSurfaceVariant}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.nameInput,
+                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
+              ]}
+            />
+            <Text style={[styles.profileCurrencyLbl, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+              Model id
+            </Text>
+            <TextInput
+              value={geminiModelDraft}
+              onChangeText={setGeminiModelDraft}
+              placeholder={DEFAULT_GEMINI_MODEL}
+              placeholderTextColor={colors.onSurfaceVariant}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.nameInput,
+                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
+              ]}
+            />
+            <Text style={[styles.geminiModelHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+              Use {DEFAULT_GEMINI_MODEL} if you see quota errors with other model names.
+            </Text>
+            <View style={styles.geminiActions}>
+              <Pressable
+                onPress={async () => {
+                  try {
+                    if (geminiKeyDraft.trim()) {
+                      await setGeminiApiKey(geminiKeyDraft.trim());
+                      setGeminiHasKey(true);
+                      setGeminiKeyDraft('');
+                    }
+                    await setGeminiModelId(geminiModelDraft.trim() || DEFAULT_GEMINI_MODEL);
+                    Alert.alert('Saved', 'Gemini settings were updated.');
+                  } catch (e) {
+                    Alert.alert('Error', e instanceof Error ? e.message : 'Could not save.');
+                  }
+                }}
+                style={[styles.nameSave, { backgroundColor: colors.primary }]}>
+                <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Save</Text>
+              </Pressable>
+              {geminiHasKey ? (
+                <Pressable
+                  onPress={() => {
+                    Alert.alert('Remove API key?', 'Exbot will stay disabled until you add a key again.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await setGeminiApiKey(null);
+                            setGeminiHasKey(false);
+                          } catch (e) {
+                            Alert.alert('Error', e instanceof Error ? e.message : 'Could not remove.');
+                          }
+                        },
+                      },
+                    ]);
+                  }}
+                  style={[styles.nameGhost, { borderColor: colors.outlineVariant }]}>
+                  <Text style={{ color: colors.error, fontFamily: labelFont }}>Remove key</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+          ) : null}
         </Card>
       </Section>
 
@@ -459,6 +632,12 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 20,
   },
+  exbotHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 20,
+  },
   rowIcon: {
     width: 40,
     height: 40,
@@ -528,5 +707,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 999,
+  },
+  geminiBlock: {
+    padding: 20,
+    gap: 10,
+  },
+  geminiHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 4,
+  },
+  geminiKeyStatus: {
+    fontSize: 13,
+  },
+  geminiModelHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: -4,
+  },
+  geminiActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+    alignItems: 'center',
   },
 });

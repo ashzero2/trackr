@@ -3,7 +3,7 @@ import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import { Platform } from 'react-native';
 
 import { runMigrations } from '@/db/migrations';
-import { seedCategories, seedDemoBudgetsIfEmpty, seedDemoTransactionsIfEmpty } from '@/db/seed';
+import { seedCategories } from '@/db/seed';
 
 const DB_NAME = 'trackr.db';
 const LEGACY_DB_NAME = 'moneymanager.db';
@@ -28,7 +28,5 @@ export async function openAndPrepareDatabase(): Promise<SQLiteDatabase> {
   const db = await openDatabaseAsync(DB_NAME);
   await runMigrations(db);
   await seedCategories(db);
-  await seedDemoTransactionsIfEmpty(db);
-  await seedDemoBudgetsIfEmpty(db);
   return db;
 }

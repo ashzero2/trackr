@@ -42,7 +42,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_budget_category_month
   ON budgets(category_id, year, month) WHERE category_id IS NOT NULL;
 `;
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 3;
+
+const MIGRATION_V3_CREATE_TRIPS = `
+CREATE TABLE IF NOT EXISTS trips (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,
+  start_at TEXT NOT NULL,
+  end_at TEXT,
+  status TEXT NOT NULL CHECK (status IN ('PLANNED', 'ACTIVE', 'COMPLETED', 'ARCHIVED')),
+  created_at TEXT NOT NULL,
+  metadata TEXT
+);
+`;
+
+const MIGRATION_V3_CREATE_SUMMARIES = `
+CREATE TABLE IF NOT EXISTS trip_summaries (
+  trip_id TEXT PRIMARY KEY NOT NULL,
+  total_expense_cents INTEGER NOT NULL DEFAULT 0,
+  total_income_cents INTEGER NOT NULL DEFAULT 0,
+  txn_count INTEGER NOT NULL DEFAULT 0,
+  first_occurred_at TEXT,
+  last_occurred_at TEXT,
+  total_days INTEGER NOT NULL DEFAULT 1,
+  last_updated TEXT NOT NULL,
+  FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE RESTRICT
+);
+`;
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA foreign_keys = ON;');
@@ -52,7 +78,31 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
 
   if (version < 1) {
     await db.execAsync(MIGRATION_V1);
-    await db.execAsync(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
-    version = CURRENT_SCHEMA_VERSION;
+    await db.execAsync('PRAGMA user_version = 1');
+    version = 1;
+  }
+
+  if (version < 2) {
+    await db.execAsync(`UPDATE transactions SET payment_method = 'CARD' WHERE payment_method = 'VISA'`);
+    await db.execAsync('PRAGMA user_version = 2');
+    version = 2;
+  }
+
+  if (version < 3) {
+    await db.execAsync(MIGRATION_V3_CREATE_TRIPS);
+    await db.execAsync(MIGRATION_V3_CREATE_SUMMARIES);
+    await db.execAsync('ALTER TABLE transactions ADD COLUMN trip_id TEXT');
+    await db.execAsync('ALTER TABLE transactions ADD COLUMN currency_code TEXT');
+    await db.execAsync('ALTER TABLE transactions ADD COLUMN amount_base_cents INTEGER');
+    await db.execAsync('ALTER TABLE transactions ADD COLUMN exchange_rate_to_base REAL');
+    await db.execAsync('CREATE INDEX IF NOT EXISTS idx_transactions_trip_id ON transactions(trip_id)');
+    await db.execAsync(
+      'CREATE INDEX IF NOT EXISTS idx_transactions_trip_occurred ON transactions(trip_id, occurred_at)',
+    );
+    await db.execAsync(
+      `UPDATE transactions SET amount_base_cents = amount_cents, exchange_rate_to_base = 1.0 WHERE amount_base_cents IS NULL`,
+    );
+    await db.execAsync('PRAGMA user_version = 3');
+    version = 3;
   }
 }

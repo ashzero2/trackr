@@ -1,4 +1,4 @@
-import type { EntryType } from '@/types/finance';
+import type { EntryType, TripStatus } from '@/types/finance';
 
 /** `categories` table */
 export type CategorySqlRow = {
@@ -14,6 +14,29 @@ export type CategoryWithUsageSqlRow = CategorySqlRow & {
   tx_count: number;
 };
 
+/** `trips` table */
+export type TripSqlRow = {
+  id: string;
+  name: string;
+  start_at: string;
+  end_at: string | null;
+  status: TripStatus;
+  created_at: string;
+  metadata: string | null;
+};
+
+/** `trip_summaries` table */
+export type TripSummarySqlRow = {
+  trip_id: string;
+  total_expense_cents: number;
+  total_income_cents: number;
+  txn_count: number;
+  first_occurred_at: string | null;
+  last_occurred_at: string | null;
+  total_days: number;
+  last_updated: string;
+};
+
 /** `transactions` table */
 export type TransactionSqlRow = {
   id: string;
@@ -24,6 +47,10 @@ export type TransactionSqlRow = {
   note: string | null;
   payment_method: string;
   created_at: string;
+  trip_id: string | null;
+  currency_code: string | null;
+  amount_base_cents: number | null;
+  exchange_rate_to_base: number | null;
 };
 
 export type TransactionWithCategorySqlRow = TransactionSqlRow & {

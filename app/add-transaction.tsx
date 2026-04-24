@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -20,11 +21,13 @@ import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useRepositories } from '@/contexts/database-context';
+import { useUserProfile } from '@/contexts/user-profile-context';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { lightImpact } from '@/lib/haptics';
-import type { Category, EntryType, PaymentMethod } from '@/types/finance';
+import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
+import { formatPaymentMethodLabel } from '@/lib/payment-method';
 
-const PAYMENTS: PaymentMethod[] = ['VISA', 'CASH', 'ACH', 'OTHER'];
+const PAYMENTS: PaymentMethod[] = ['CARD', 'CASH', 'ACH', 'OTHER'];
 
 export default function AddTransactionScreen() {
   const { id: editId } = useLocalSearchParams<{ id?: string }>();
@@ -32,14 +35,15 @@ export default function AddTransactionScreen() {
   const navigation = useNavigation();
   const { colors } = useAppColors();
   const { currencyCode } = useFormatMoney();
-  const { transactions, categories } = useRepositories();
+  const { travelModeEnabled, activeTripId, currencyCode: profileCurrency, setProfile } = useUserProfile();
+  const { transactions, categories, trips } = useRepositories();
 
   const [loading, setLoading] = useState(!!editId);
   const [type, setType] = useState<EntryType>('expense');
   const [amountText, setAmountText] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('VISA');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [occurredAt, setOccurredAt] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -47,6 +51,11 @@ export default function AddTransactionScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [catList, setCatList] = useState<Category[]>([]);
+  const [tripList, setTripList] = useState<Trip[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [tripPickerOpen, setTripPickerOpen] = useState(false);
+  const [newTripModalOpen, setNewTripModalOpen] = useState(false);
+  const [newTripName, setNewTripName] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -57,6 +66,41 @@ export default function AddTransactionScreen() {
       alive = false;
     };
   }, [categories, type]);
+
+  useEffect(() => {
+    let alive = true;
+    trips.listForTransactionPicker().then((list) => {
+      if (alive) setTripList(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [trips]);
+
+  useEffect(() => {
+    if (editId) return;
+    if (!travelModeEnabled) {
+      setSelectedTripId(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      if (!activeTripId) {
+        if (alive) setSelectedTripId(null);
+        return;
+      }
+      const t = await trips.getById(activeTripId);
+      if (!alive) return;
+      if (t?.status === 'ACTIVE') {
+        setSelectedTripId(activeTripId);
+      } else {
+        setSelectedTripId(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [editId, travelModeEnabled, activeTripId, trips]);
 
   const load = useCallback(async () => {
     if (!editId) {
@@ -71,6 +115,7 @@ export default function AddTransactionScreen() {
       setNote(row.note ?? '');
       setPaymentMethod(row.paymentMethod);
       setOccurredAt(new Date(row.occurredAt));
+      setSelectedTripId(row.tripId);
     }
     setLoading(false);
   }, [editId, transactions]);
@@ -87,6 +132,103 @@ export default function AddTransactionScreen() {
 
   const selectedCategory = categoryId ? catList.find((c) => c.id === categoryId) ?? null : null;
 
+  const selectedTripLabel = useMemo(() => {
+    if (!selectedTripId) return 'None — everyday spending';
+    const t = tripList.find((x) => x.id === selectedTripId);
+    if (t) return `${t.name} (${t.status})`;
+    return 'Trip selected';
+  }, [selectedTripId, tripList]);
+
+  const tripPickerRows = useMemo(() => {
+    const rows: ({ rowKey: string; kind: 'none' } | { rowKey: string; kind: 'new' } | { rowKey: string; kind: 'trip'; trip: Trip })[] = [
+      { rowKey: 'none', kind: 'none' },
+    ];
+    for (const t of tripList) rows.push({ rowKey: t.id, kind: 'trip', trip: t });
+    rows.push({ rowKey: 'new', kind: 'new' });
+    return rows;
+  }, [tripList]);
+
+  async function confirmIfFinishedTrip(tripId: string | null): Promise<boolean> {
+    if (!tripId) return true;
+    const tr = await trips.getById(tripId);
+    if (!tr || (tr.status !== 'COMPLETED' && tr.status !== 'ARCHIVED')) return true;
+    return new Promise((resolve) => {
+      Alert.alert(
+        'Attach to finished trip?',
+        'This trip is no longer active. Continue and link this transaction to it?',
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Continue', onPress: () => resolve(true) },
+        ],
+      );
+    });
+  }
+
+  const onCreateQuickTrip = async () => {
+    const n = newTripName.trim();
+    if (!n) {
+      Alert.alert('Name required', 'Enter a short name for this trip.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const id = await Crypto.randomUUID();
+      const iso = new Date().toISOString();
+      await trips.insert({
+        id,
+        name: n,
+        startAt: iso,
+        endAt: null,
+        status: 'ACTIVE',
+        metadata: null,
+      });
+      await setProfile({ activeTripId: id, travelModeEnabled: true });
+      const list = await trips.listForTransactionPicker();
+      setTripList(list);
+      setSelectedTripId(id);
+      setNewTripModalOpen(false);
+      setNewTripName('');
+    } catch (e) {
+      Alert.alert('Could not create trip', e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const persistTxn = async (cents: number, iso: string, tripId: string | null, catId: string) => {
+    const cur = profileCurrency;
+    if (editId) {
+      await transactions.update(editId, {
+        amountCents: cents,
+        type,
+        categoryId: catId,
+        occurredAt: iso,
+        note: note.trim() || null,
+        paymentMethod,
+        tripId,
+        currencyCode: cur,
+        amountBaseCents: cents,
+        exchangeRateToBase: 1,
+      });
+    } else {
+      await transactions.insert({
+        id: await Crypto.randomUUID(),
+        amountCents: cents,
+        type,
+        categoryId: catId,
+        occurredAt: iso,
+        note: note.trim() || null,
+        paymentMethod,
+        tripId,
+        currencyCode: cur,
+        amountBaseCents: cents,
+        exchangeRateToBase: 1,
+      });
+    }
+    lightImpact();
+    router.back();
+  };
+
   const onSave = async () => {
     setError(null);
     const parsed = Number.parseFloat(amountText.replace(/,/g, ''));
@@ -98,32 +240,16 @@ export default function AddTransactionScreen() {
       setError('Choose a category.');
       return;
     }
+    const catId = categoryId;
     const cents = Math.round(parsed * 100);
+    const iso = occurredAt.toISOString();
+    const tripId = selectedTripId;
+    const okTrip = await confirmIfFinishedTrip(tripId);
+    if (!okTrip) return;
+
     setSaving(true);
     try {
-      const iso = occurredAt.toISOString();
-      if (editId) {
-        await transactions.update(editId, {
-          amountCents: cents,
-          type,
-          categoryId,
-          occurredAt: iso,
-          note: note.trim() || null,
-          paymentMethod,
-        });
-      } else {
-        await transactions.insert({
-          id: await Crypto.randomUUID(),
-          amountCents: cents,
-          type,
-          categoryId,
-          occurredAt: iso,
-          note: note.trim() || null,
-          paymentMethod,
-        });
-      }
-      lightImpact();
-      router.back();
+      await persistTxn(cents, iso, tripId, catId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save.');
     } finally {
@@ -213,6 +339,24 @@ export default function AddTransactionScreen() {
           </Text>
         </Pressable>
 
+        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Trip</Text>
+        {travelModeEnabled ? (
+          <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12, marginTop: 4 }}>
+            Only ACTIVE trips auto-fill from “Currently tracking”. You can override for each transaction.
+          </Text>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Trip ${selectedTripLabel}`}
+          onPress={() => setTripPickerOpen(true)}
+          style={[
+            styles.input,
+            styles.pickerTrigger,
+            { backgroundColor: colors.surfaceContainerLowest },
+          ]}>
+          <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>{selectedTripLabel}</Text>
+        </Pressable>
+
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Merchant / note</Text>
         <TextInput
           value={note}
@@ -286,7 +430,7 @@ export default function AddTransactionScreen() {
               key={p}
               accessibilityRole="button"
               accessibilityState={{ selected: paymentMethod === p }}
-              accessibilityLabel={`Payment method ${p}`}
+              accessibilityLabel={`Payment method ${formatPaymentMethodLabel(p)}`}
               onPress={() => setPaymentMethod(p)}
               style={[
                 styles.payChip,
@@ -301,7 +445,7 @@ export default function AddTransactionScreen() {
                   fontSize: 12,
                   fontWeight: '600',
                 }}>
-                {p}
+                {formatPaymentMethodLabel(p)}
               </Text>
             </Pressable>
           ))}
@@ -349,6 +493,87 @@ export default function AddTransactionScreen() {
               )}
             />
           </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={tripPickerOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setTripPickerOpen(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>Trip</Text>
+            <FlatList
+              data={tripPickerRows}
+              keyExtractor={(item) => item.rowKey}
+              renderItem={({ item }) => {
+                if (item.kind === 'none') {
+                  return (
+                    <Pressable
+                      style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
+                      onPress={() => {
+                        setSelectedTripId(null);
+                        setTripPickerOpen(false);
+                      }}>
+                      <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>
+                        None — everyday spending
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                if (item.kind === 'new') {
+                  return (
+                    <Pressable
+                      style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
+                      onPress={() => {
+                        setTripPickerOpen(false);
+                        setNewTripModalOpen(true);
+                      }}>
+                      <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700', fontSize: 16 }}>
+                        + Start new trip
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                const t = item.trip;
+                return (
+                  <Pressable
+                    style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
+                    onPress={() => {
+                      setSelectedTripId(t.id);
+                      setTripPickerOpen(false);
+                    }}>
+                    <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>
+                      {t.name} · {t.status}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={newTripModalOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setNewTripModalOpen(false)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>New trip</Text>
+            <TextInput
+              value={newTripName}
+              onChangeText={setNewTripName}
+              placeholder="Trip name"
+              placeholderTextColor={colors.onSurfaceVariant}
+              style={[
+                styles.input,
+                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
+              ]}
+            />
+            <Pressable
+              onPress={() => void onCreateQuickTrip()}
+              disabled={saving}
+              style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 16 }]}>
+              <Text style={{ color: colors.onPrimary, fontFamily: headlineFont, fontWeight: '700' }}>Create & set active</Text>
+            </Pressable>
+          </Pressable>
         </Pressable>
       </Modal>
     </KeyboardAvoidingView>

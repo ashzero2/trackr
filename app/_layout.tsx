@@ -42,6 +42,8 @@ export default function RootLayout() {
             />
             <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
             <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
+            <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
+            <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
             </Stack>
           </NavigationThemeRoot>
         </DatabaseProvider>

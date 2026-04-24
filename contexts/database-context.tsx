@@ -4,11 +4,13 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { BudgetRepository } from '@/data/budget-repository';
 import { CategoryRepository } from '@/data/category-repository';
 import { TransactionRepository } from '@/data/transaction-repository';
+import { TripRepository } from '@/data/trip-repository';
 import { openAndPrepareDatabase } from '@/db/open-database';
 
 export type Repositories = {
   categories: CategoryRepository;
   transactions: TransactionRepository;
+  trips: TripRepository;
   budgets: BudgetRepository;
 };
 
@@ -18,6 +20,7 @@ type DatabaseContextValue = {
   db: SQLiteDatabase | null;
   categories: CategoryRepository | null;
   transactions: TransactionRepository | null;
+  trips: TripRepository | null;
   budgets: BudgetRepository | null;
 };
 
@@ -60,15 +63,18 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         db: null,
         categories: null,
         transactions: null,
+        trips: null,
         budgets: null,
       };
     }
+    const trips = new TripRepository(db);
     return {
       ready: true,
       error,
       db,
       categories: new CategoryRepository(db),
-      transactions: new TransactionRepository(db),
+      trips,
+      transactions: new TransactionRepository(db, trips),
       budgets: new BudgetRepository(db),
     };
   }, [ready, error, db]);
@@ -85,12 +91,12 @@ export function useDatabase(): DatabaseContextValue {
 }
 
 export function useRepositories(): Repositories & { db: SQLiteDatabase } {
-  const { ready, db, categories, transactions, budgets, error } = useDatabase();
+  const { ready, db, categories, transactions, trips, budgets, error } = useDatabase();
   if (error) {
     throw error;
   }
-  if (!ready || !db || !categories || !transactions || !budgets) {
+  if (!ready || !db || !categories || !transactions || !trips || !budgets) {
     throw new Error('Database not ready');
   }
-  return { db, categories, transactions, budgets };
+  return { db, categories, transactions, trips, budgets };
 }

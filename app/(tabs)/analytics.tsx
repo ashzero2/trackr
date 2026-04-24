@@ -8,6 +8,7 @@ import { ScreenScaffold } from '@/components/screen-scaffold';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
+import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import {
   bucketLast7LocalDays,
@@ -29,7 +30,8 @@ function monthRangeUtc(year: number, month: number): { start: string; end: strin
 export default function AnalyticsScreen() {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
-  const { ready, error, transactions, budgets, categories } = useDatabase();
+  const { travelModeEnabled } = useUserProfile();
+  const { ready, error, transactions, budgets, categories, trips } = useDatabase();
   const [mode, setMode] = useState<'week' | 'month'>('month');
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [budgetList, setBudgetList] = useState<Budget[]>([]);
@@ -41,16 +43,25 @@ export default function AnalyticsScreen() {
   const [peak, setPeak] = useState<string | undefined>();
   const [catRows, setCatRows] = useState<Category[]>([]);
   const [insight, setInsight] = useState('');
+  const [tripVsNormal, setTripVsNormal] = useState<{
+    tripExpenseBaseCents: number;
+    normalExpenseBaseCents: number;
+  } | null>(null);
+  const [tripYearBars, setTripYearBars] = useState<{ tripId: string; name: string; totalExpenseCents: number }[]>([]);
 
   const load = useCallback(async () => {
-    if (!transactions || !budgets || !categories) return;
+    if (!transactions || !budgets || !categories || !trips) return;
     const { year: y, month: m } = utcCalendarMonthNow();
-    const [s, bl, sc, allCats] = await Promise.all([
+    const [s, bl, sc, allCats, vs, yTrips] = await Promise.all([
       transactions.summaryForMonth(y, m),
       budgets.listForMonth(y, m),
       transactions.spendingByCategoryForMonth(y, m),
       categories.listAll(),
+      trips.summaryTripVsNormalForMonth(y, m),
+      trips.listTripExpenseTotalsForYear(y),
     ]);
+    setTripVsNormal(vs);
+    setTripYearBars(yTrips);
     setSummary(s);
     setBudgetList(bl);
     setSpentByCat(sc);
@@ -90,12 +101,12 @@ export default function AnalyticsScreen() {
         `You’re logging steadily across categories. Keep recording transactions for sharper forecasts next month.`,
       );
     }
-  }, [transactions, budgets, categories, mode]);
+  }, [transactions, budgets, categories, trips, mode]);
 
   useFocusEffect(
     useCallback(() => {
-      if (ready && transactions && budgets && categories) load();
-    }, [ready, transactions, budgets, categories, load]),
+      if (ready && transactions && budgets && categories && trips) load();
+    }, [ready, transactions, budgets, categories, trips, load]),
   );
 
   const catIcon = useCallback(
@@ -125,7 +136,7 @@ export default function AnalyticsScreen() {
     );
   }
 
-  if (!ready || !transactions || !budgets || !categories) {
+  if (!ready || !transactions || !budgets || !categories || !trips) {
     return (
       <ScreenScaffold>
         <View style={styles.loader}>
@@ -178,6 +189,44 @@ export default function AnalyticsScreen() {
         subtitle={trendSubtitle}
         peakLabel={peak}
       />
+
+      {travelModeEnabled && tripVsNormal ? (
+        <View style={[styles.tripCard, { backgroundColor: colors.surfaceContainerLowest, marginTop: 16 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.primary, fontFamily: headlineFont, marginBottom: 12 }]}>
+            Trips vs other (this month, base currency)
+          </Text>
+          <View style={styles.tripVsRow}>
+            <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant }}>Trip-linked</Text>
+            <Text style={{ fontFamily: headlineFont, fontWeight: '800', color: colors.primary }}>
+              {format(tripVsNormal.tripExpenseBaseCents)}
+            </Text>
+          </View>
+          <View style={styles.tripVsRow}>
+            <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant }}>Everyday (no trip)</Text>
+            <Text style={{ fontFamily: headlineFont, fontWeight: '800', color: colors.chartPeakLabel }}>
+              {format(tripVsNormal.normalExpenseBaseCents)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {travelModeEnabled && tripYearBars.length > 0 ? (
+        <View style={{ marginTop: 16, gap: 8 }}>
+          <Text style={[styles.sectionTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+            Trips this year (expenses)
+          </Text>
+          {tripYearBars.slice(0, 8).map((t) => (
+            <View
+              key={t.tripId}
+              style={[styles.tripVsRow, { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.outlineVariant }]}>
+              <Text style={{ fontFamily: bodyFont, color: colors.onSurface, flex: 1 }} numberOfLines={1}>
+                {t.name}
+              </Text>
+              <Text style={{ fontFamily: labelFont, fontWeight: '700', color: colors.onSurface }}>{format(t.totalExpenseCents)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.budgetHeader}>
         <Text style={[styles.sectionTitle, { color: colors.primary, fontFamily: headlineFont }]}>
@@ -400,5 +449,15 @@ const styles = StyleSheet.create({
   insightBody: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  tripCard: {
+    borderRadius: 24,
+    padding: 20,
+  },
+  tripVsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
   },
 });
