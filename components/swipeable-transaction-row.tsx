@@ -102,7 +102,7 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
     );
   }
 
-  return (
+  const swipeable = (
     <ReanimatedSwipeable
       ref={swipeRef}
       friction={2}
@@ -116,12 +116,29 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
         dense={dense}
         onPress={handleEdit}
         onLongPress={handleLongPress}
+        rowStyle={dense ? undefined : { borderRadius: 0 }}
       />
     </ReanimatedSwipeable>
   );
+
+  // Non-dense rows have their own borderRadius on TransactionRow; clip the
+  // swipeable so the action buttons respect the same rounded shape.
+  if (!dense) {
+    return (
+      <View style={styles.clip}>
+        {swipeable}
+      </View>
+    );
+  }
+
+  return swipeable;
 }
 
 const styles = StyleSheet.create({
+  clip: {
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
   actionBtn: {
     width: 72,
     alignItems: 'center',

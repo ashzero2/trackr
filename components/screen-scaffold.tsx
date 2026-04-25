@@ -8,6 +8,10 @@ import { bodyFont, headlineFont } from '@/constants/typography';
 
 type ScreenScaffoldProps = {
   children: React.ReactNode;
+  /** Override the greeting with a static header title */
+  headerTitle?: string;
+  /** Actions rendered on the right side of the header */
+  headerRight?: React.ReactNode;
   /** Optional subtitle under header area (e.g. screen-specific) */
   subtitle?: string;
   /** Extra bottom padding (e.g. FAB above tab bar) */
@@ -16,13 +20,13 @@ type ScreenScaffoldProps = {
   fab?: React.ReactNode;
 };
 
-export function ScreenScaffold({ children, subtitle, contentBottomExtra = 0, fab }: ScreenScaffoldProps) {
+export function ScreenScaffold({ children, headerTitle, headerRight, subtitle, contentBottomExtra = 0, fab }: ScreenScaffoldProps) {
   const { colors } = useAppColors();
   const bottomPad = TAB_BAR_EXTRA + contentBottomExtra;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.surface }]} edges={['top']}>
-      <AppHeader />
+      <AppHeader title={headerTitle} right={headerRight} />
       {subtitle ? (
         <View style={styles.subtitleWrap}>
           <Text style={[styles.subtitle, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>

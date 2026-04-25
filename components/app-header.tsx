@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { headlineFont } from '@/constants/typography';
@@ -9,7 +10,12 @@ import { useUserProfile } from '@/contexts/user-profile-context';
 import { TravelTrackingBanner } from '@/components/travel-tracking-banner';
 import { greetingForSession } from '@/lib/greetings';
 
-type AppHeaderProps = Record<string, never>;
+type AppHeaderProps = {
+  /** Override the greeting with a static title */
+  title?: string;
+  /** Slot rendered on the right side of the header row */
+  right?: React.ReactNode;
+};
 
 function initialsFromName(name: string): string {
   const parts = name
@@ -21,7 +27,7 @@ function initialsFromName(name: string): string {
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
 
-export function AppHeader(_props: AppHeaderProps) {
+export function AppHeader({ title, right }: AppHeaderProps) {
   const { colors } = useAppColors();
   const { displayName, petAvatarUrl } = useUserProfile();
   const titleColor = colors.primary;
@@ -34,6 +40,8 @@ export function AppHeader(_props: AppHeaderProps) {
   const greeting = useMemo(() => greetingForSession(displayName), [displayName]);
   const initials = useMemo(() => initialsFromName(displayName), [displayName]);
   const showPet = Boolean(petAvatarUrl) && !avatarFailed;
+
+  const displayTitle = title ?? greeting;
 
   return (
     <View style={styles.wrapper}>
@@ -61,11 +69,11 @@ export function AppHeader(_props: AppHeaderProps) {
           <Text
             style={[styles.title, { color: titleColor }, { fontFamily: headlineFont }]}
             accessibilityRole="header"
-            accessibilityLabel={greeting}
             numberOfLines={1}>
-            {greeting}
+            {displayTitle}
           </Text>
         </View>
+        {right ? <View style={styles.rightSlot}>{right}</View> : null}
       </View>
       <TravelTrackingBanner />
     </View>
@@ -91,6 +99,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     paddingRight: 8,
+  },
+  rightSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
   },
   avatar: {
     width: 40,

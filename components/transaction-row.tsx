@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { bodyFont, labelFont } from '@/constants/typography';
@@ -15,9 +15,11 @@ type TransactionRowProps = {
   onLongPress?: () => void;
   /** Flush rows inside a grouped card (no outer rounding per row) */
   dense?: boolean;
+  /** Override the outer row container style (e.g. remove borderRadius when inside a clip wrapper) */
+  rowStyle?: ViewStyle;
 };
 
-export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense }: TransactionRowProps) {
+export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense, rowStyle }: TransactionRowProps) {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
   const iconName = materialIconNameForCategory(transaction.categoryIconKey);
@@ -53,7 +55,7 @@ export function TransactionRow({ transaction, subtitle, onPress, onLongPress, de
 
   const rowBase = dense
     ? [styles.rowDense, { backgroundColor: 'transparent' as const }]
-    : [styles.row, { backgroundColor: colors.surfaceContainerLow }];
+    : [styles.row, { backgroundColor: colors.surfaceContainerLow }, rowStyle];
 
   const a11yLabel = `${transaction.type === 'expense' ? 'Expense' : 'Income'}, ${transaction.note?.trim() || transaction.categoryName}, ${sign}${format(transaction.amountCents)}`;
 

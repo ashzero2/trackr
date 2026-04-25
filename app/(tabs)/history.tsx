@@ -142,8 +142,42 @@ export default function HistoryScreen() {
     );
   }
 
+  const headerRight = (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Export transactions as CSV"
+        onPress={() => {
+          const filename = `trackr-${year}-${String(month).padStart(2, '0')}.csv`;
+          void exportTransactionsCsv(segment === 'other' ? filtered : [], filename);
+        }}
+        style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
+        hitSlop={MIN_TOUCH_TARGET}>
+        <MaterialIcons name="download" size={20} color={colors.primary} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={searchOpen ? 'Close search' : 'Search transactions'}
+        onPress={() => { setSearchOpen((o) => !o); if (searchOpen) setQuery(''); }}
+        style={[styles.iconBtn, { backgroundColor: searchOpen ? colors.primaryContainer : colors.surfaceContainerLow }]}
+        hitSlop={MIN_TOUCH_TARGET}>
+        <MaterialIcons name={searchOpen ? 'close' : 'search'} size={20} color={searchOpen ? colors.onPrimaryContainer : colors.primary} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Select year, currently ${year}`}
+        onPress={() => setYearModal(true)}
+        style={[styles.yearBtn, { backgroundColor: colors.surfaceContainerLow }]}>
+        <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>{year}</Text>
+        <MaterialIcons name="expand-more" size={20} color={colors.primary} importantForAccessibility="no" />
+      </Pressable>
+    </>
+  );
+
   return (
     <ScreenScaffold
+      headerTitle="History"
+      headerRight={headerRight}
       contentBottomExtra={72}
       fab={
         <FabGradient
@@ -151,41 +185,6 @@ export default function HistoryScreen() {
           onPress={() => router.push('/add-transaction')}
         />
       }>
-      <View style={styles.titleRow}>
-        <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>
-          Transaction history
-        </Text>
-        <View style={styles.titleActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Export transactions as CSV"
-            onPress={() => {
-              const filename = `trackr-${year}-${String(month).padStart(2, '0')}.csv`;
-              void exportTransactionsCsv(segment === 'other' ? filtered : [], filename);
-            }}
-            style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
-            hitSlop={MIN_TOUCH_TARGET}>
-            <MaterialIcons name="download" size={20} color={colors.primary} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={searchOpen ? 'Close search' : 'Search transactions'}
-            onPress={() => { setSearchOpen((o) => !o); if (searchOpen) setQuery(''); }}
-            style={[styles.iconBtn, { backgroundColor: searchOpen ? colors.primaryContainer : colors.surfaceContainerLow }]}
-            hitSlop={MIN_TOUCH_TARGET}>
-            <MaterialIcons name={searchOpen ? 'close' : 'search'} size={20} color={searchOpen ? colors.onPrimaryContainer : colors.primary} />
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Select year, currently ${year}`}
-            onPress={() => setYearModal(true)}
-            style={[styles.yearBtn, { backgroundColor: colors.surfaceContainerLow }]}>
-            <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>{year}</Text>
-            <MaterialIcons name="expand-more" size={20} color={colors.primary} importantForAccessibility="no" />
-          </Pressable>
-        </View>
-      </View>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -404,22 +403,6 @@ const styles = StyleSheet.create({
     minHeight: 120,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    flex: 1,
-  },
-  titleActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   iconBtn: {
     width: MIN_TOUCH_TARGET,
