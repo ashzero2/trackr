@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { NavigationThemeRoot } from '@/components/navigation-theme-root';
@@ -25,6 +26,7 @@ export default function RootLayout() {
   }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <ColorSchemeProvider>
       <UserProfileProvider>
         <DatabaseProvider>
@@ -49,5 +51,6 @@ export default function RootLayout() {
         </DatabaseProvider>
       </UserProfileProvider>
     </ColorSchemeProvider>
+    </GestureHandlerRootView>
   );
 }
