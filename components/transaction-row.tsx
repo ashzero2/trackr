@@ -12,11 +12,12 @@ type TransactionRowProps = {
   transaction: TransactionWithCategory;
   subtitle: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   /** Flush rows inside a grouped card (no outer rounding per row) */
   dense?: boolean;
 };
 
-export function TransactionRow({ transaction, subtitle, onPress, dense }: TransactionRowProps) {
+export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense }: TransactionRowProps) {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
   const iconName = materialIconNameForCategory(transaction.categoryIconKey);
@@ -56,12 +57,14 @@ export function TransactionRow({ transaction, subtitle, onPress, dense }: Transa
 
   const a11yLabel = `${transaction.type === 'expense' ? 'Expense' : 'Income'}, ${transaction.note?.trim() || transaction.categoryName}, ${sign}${format(transaction.amountCents)}`;
 
-  if (onPress) {
+  if (onPress || onLongPress) {
     return (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={a11yLabel}
         onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={400}
         style={({ pressed }) => [
           ...rowBase,
           !dense && pressed && { backgroundColor: colors.surfaceContainerHighest },

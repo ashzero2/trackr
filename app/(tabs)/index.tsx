@@ -7,7 +7,7 @@ import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { DashboardHeroCard } from '@/components/gradient-hero-preview';
 import { FabGradient } from '@/components/fab-gradient';
 import { ScreenScaffold } from '@/components/screen-scaffold';
-import { TransactionRow } from '@/components/transaction-row';
+import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
@@ -56,6 +56,14 @@ export default function DashboardScreen() {
         load();
       }
     }, [ready, transactions, budgets, load]),
+  );
+
+  const onDelete = useCallback(
+    async (id: string) => {
+      setRecent((prev) => prev.filter((r) => r.id !== id));
+      await transactions?.delete(id);
+    },
+    [transactions],
   );
 
   const vsLastMonthPercent = useMemo(() => {
@@ -212,16 +220,11 @@ export default function DashboardScreen() {
             </View>
             <View style={{ gap: 10 }}>
               {items.map((t) => (
-                <TransactionRow
+                <SwipeableTransactionRow
                   key={t.id}
                   transaction={t}
                   subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/add-transaction',
-                      params: { id: t.id },
-                    })
-                  }
+                  onDelete={onDelete}
                 />
               ))}
             </View>

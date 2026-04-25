@@ -15,7 +15,7 @@ import {
 
 import { FabGradient } from '@/components/fab-gradient';
 import { ScreenScaffold } from '@/components/screen-scaffold';
-import { TransactionRow } from '@/components/transaction-row';
+import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
@@ -28,10 +28,13 @@ import type { TransactionWithCategory, TripMonthActivity } from '@/types/finance
 function matchesQuery(t: TransactionWithCategory, q: string): boolean {
   if (!q.trim()) return true;
   const s = q.toLowerCase();
+  const amountStr = (t.amountCents / 100).toFixed(2);
   return (
     t.categoryName.toLowerCase().includes(s) ||
     (t.note?.toLowerCase().includes(s) ?? false) ||
-    t.paymentMethod.toLowerCase().includes(s)
+    t.paymentMethod.toLowerCase().includes(s) ||
+    amountStr.includes(s) ||
+    amountStr.replace('.', '').startsWith(s.replace('.', ''))
   );
 }
 
@@ -50,6 +53,7 @@ export default function HistoryScreen() {
   const [yearModal, setYearModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!transactions || !trips) return;
@@ -67,7 +71,27 @@ export default function HistoryScreen() {
     }, [ready, transactions, trips, load]),
   );
 
-  const filtered = useMemo(() => rows.filter((t) => matchesQuery(t, query)), [rows, query]);
+  const onDelete = useCallback(
+    async (id: string) => {
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      await transactions?.delete(id);
+    },
+    [transactions],
+  );
+
+  const categoryOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of rows) seen.set(r.categoryId, r.categoryName);
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [rows]);
+
+  const filtered = useMemo(
+    () =>
+      rows
+        .filter((t) => matchesQuery(t, query))
+        .filter((t) => !categoryFilter || t.categoryId === categoryFilter),
+    [rows, query, categoryFilter],
+  );
 
   const filteredTrips = useMemo(() => {
     if (!query.trim()) return tripRows;
@@ -122,23 +146,32 @@ export default function HistoryScreen() {
       contentBottomExtra={72}
       fab={
         <FabGradient
-          icon="search"
-          accessibilityLabel="Search transactions"
-          onPress={() => setSearchOpen((o) => !o)}
+          accessibilityLabel="Add transaction"
+          onPress={() => router.push('/add-transaction')}
         />
       }>
       <View style={styles.titleRow}>
         <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>
           Transaction history
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Select year, currently ${year}`}
-          onPress={() => setYearModal(true)}
-          style={[styles.yearBtn, { backgroundColor: colors.surfaceContainerLow }]}>
-          <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>{year}</Text>
-          <MaterialIcons name="expand-more" size={20} color={colors.primary} importantForAccessibility="no" />
-        </Pressable>
+        <View style={styles.titleActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={searchOpen ? 'Close search' : 'Search transactions'}
+            onPress={() => { setSearchOpen((o) => !o); if (searchOpen) setQuery(''); }}
+            style={[styles.iconBtn, { backgroundColor: searchOpen ? colors.primaryContainer : colors.surfaceContainerLow }]}
+            hitSlop={MIN_TOUCH_TARGET}>
+            <MaterialIcons name={searchOpen ? 'close' : 'search'} size={20} color={searchOpen ? colors.onPrimaryContainer : colors.primary} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Select year, currently ${year}`}
+            onPress={() => setYearModal(true)}
+            style={[styles.yearBtn, { backgroundColor: colors.surfaceContainerLow }]}>
+            <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>{year}</Text>
+            <MaterialIcons name="expand-more" size={20} color={colors.primary} importantForAccessibility="no" />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -224,9 +257,10 @@ export default function HistoryScreen() {
 
       {searchOpen ? (
         <TextInput
+          autoFocus
           value={query}
           onChangeText={setQuery}
-          placeholder="Search merchant, category, payment…"
+          placeholder="Search merchant, category, amount…"
           placeholderTextColor={colors.onSurfaceVariant}
           style={[
             styles.search,
@@ -237,6 +271,33 @@ export default function HistoryScreen() {
             },
           ]}
         />
+      ) : null}
+
+      {segment === 'other' && categoryOptions.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterChipsRow}
+          style={{ marginHorizontal: -24, marginBottom: 8 }}>
+          {[{ id: null, name: 'All' }, ...categoryOptions].map((c) => {
+            const active = categoryFilter === c.id;
+            return (
+              <Pressable
+                key={c.id ?? 'all'}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => setCategoryFilter(c.id)}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: active ? colors.secondaryContainer : colors.surfaceContainerHigh },
+                ]}>
+                <Text style={{ fontFamily: labelFont, fontWeight: '700', fontSize: 12, color: active ? colors.onSecondaryContainer : colors.onSurfaceVariant }}>
+                  {c.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       ) : null}
 
       <View style={{ gap: 24, marginTop: 8 }}>
@@ -287,17 +348,12 @@ export default function HistoryScreen() {
               </View>
               <View style={[styles.cardShell, { backgroundColor: colors.surfaceContainerLowest }]}>
                 {items.map((t) => (
-                  <TransactionRow
+                  <SwipeableTransactionRow
                     key={t.id}
                     dense
                     transaction={t}
                     subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/add-transaction',
-                        params: { id: t.id },
-                      })
-                    }
+                    onDelete={onDelete}
                   />
                 ))}
               </View>
@@ -348,6 +404,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     flex: 1,
   },
+  titleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   yearBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,6 +424,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
+  },
+  filterChipsRow: {
+    paddingHorizontal: 24,
+    gap: 8,
+    alignItems: 'center',
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    minHeight: 34,
+    justifyContent: 'center',
   },
   monthScroll: {
     paddingHorizontal: 24,

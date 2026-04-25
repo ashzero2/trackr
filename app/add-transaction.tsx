@@ -30,7 +30,7 @@ import { formatPaymentMethodLabel } from '@/lib/payment-method';
 const PAYMENTS: PaymentMethod[] = ['CARD', 'CASH', 'ACH', 'OTHER'];
 
 export default function AddTransactionScreen() {
-  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const { id: editId, duplicate: duplicateId } = useLocalSearchParams<{ id?: string; duplicate?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useAppColors();
@@ -38,7 +38,7 @@ export default function AddTransactionScreen() {
   const { travelModeEnabled, activeTripId, currencyCode: profileCurrency, setProfile } = useUserProfile();
   const { transactions, categories, trips } = useRepositories();
 
-  const [loading, setLoading] = useState(!!editId);
+  const [loading, setLoading] = useState(!!(editId || duplicateId));
   const [type, setType] = useState<EntryType>('expense');
   const [amountText, setAmountText] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export default function AddTransactionScreen() {
   }, [trips]);
 
   useEffect(() => {
-    if (editId) return;
+    if (editId || duplicateId) return;
     if (!travelModeEnabled) {
       setSelectedTripId(null);
       return;
@@ -100,25 +100,27 @@ export default function AddTransactionScreen() {
     return () => {
       alive = false;
     };
-  }, [editId, travelModeEnabled, activeTripId, trips]);
+  }, [editId, duplicateId, travelModeEnabled, activeTripId, trips]);
 
   const load = useCallback(async () => {
-    if (!editId) {
+    const sourceId = editId ?? duplicateId;
+    if (!sourceId) {
       setLoading(false);
       return;
     }
-    const row = await transactions.getById(editId);
+    const row = await transactions.getById(sourceId);
     if (row) {
       setType(row.type);
       setAmountText((row.amountCents / 100).toFixed(2));
       setCategoryId(row.categoryId);
       setNote(row.note ?? '');
       setPaymentMethod(row.paymentMethod);
-      setOccurredAt(new Date(row.occurredAt));
+      // For duplicate: use today's date instead of the original
+      setOccurredAt(duplicateId ? new Date() : new Date(row.occurredAt));
       setSelectedTripId(row.tripId);
     }
     setLoading(false);
-  }, [editId, transactions]);
+  }, [editId, duplicateId, transactions]);
 
   useEffect(() => {
     load();
@@ -126,9 +128,9 @@ export default function AddTransactionScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: editId ? 'Edit transaction' : 'Add transaction',
+      title: editId ? 'Edit transaction' : duplicateId ? 'Duplicate transaction' : 'Add transaction',
     });
-  }, [navigation, editId]);
+  }, [navigation, editId, duplicateId]);
 
   const selectedCategory = categoryId ? catList.find((c) => c.id === categoryId) ?? null : null;
 
