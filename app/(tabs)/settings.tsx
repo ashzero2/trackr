@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Switch,
@@ -15,6 +16,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+import { THEME_METADATA, THEME_NAMES } from '@/constants/design-tokens';
 
 import { CurrencyPickerField } from '@/components/currency-picker-field';
 import { ScreenScaffold } from '@/components/screen-scaffold';
@@ -224,6 +227,7 @@ export default function SettingsScreen() {
             />
           </View>
           <ThemeRow />
+          <ThemeColorPicker />
         </Card>
       </Section>
 
@@ -627,7 +631,7 @@ function PressableRow({
   );
 }
 
-const THEME_OPTIONS: { label: string; value: import('@/contexts/color-scheme-context').ThemePreference }[] = [
+const SCHEME_OPTIONS: { label: string; value: import('@/contexts/color-scheme-context').ThemePreference }[] = [
   { label: 'Light', value: 'light' },
   { label: 'System', value: 'system' },
   { label: 'Dark', value: 'dark' },
@@ -636,31 +640,33 @@ const THEME_OPTIONS: { label: string; value: import('@/contexts/color-scheme-con
 function ThemeRow() {
   const { colors, themePreference, setThemePreference } = useAppColors();
   return (
-    <View style={styles.rowInner}>
-      <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
-        <MaterialIcons name="palette" size={22} color={colors.primary} />
+    <View style={styles.themeBlock}>
+      <View style={styles.themeBlockHeader}>
+        <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <MaterialIcons name="contrast" size={22} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Color mode</Text>
+          <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+            Light, system default, or dark
+          </Text>
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Color mode</Text>
-        <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-          Light, system default, or dark
-        </Text>
-      </View>
-      <View style={[styles.themeSegment, { backgroundColor: colors.surfaceContainerHighest }]}>
-        {THEME_OPTIONS.map((opt) => {
+      <View style={[styles.themeSegmentFull, { backgroundColor: colors.surfaceContainerHighest }]}>
+        {SCHEME_OPTIONS.map((opt) => {
           const active = themePreference === opt.value;
           return (
             <Pressable
               key={opt.value}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`${opt.label} theme`}
+              accessibilityLabel={`${opt.label} mode`}
               onPress={() => void setThemePreference(opt.value)}
-              style={[styles.themeChip, active && { backgroundColor: colors.primary }]}>
+              style={[styles.themeChipFull, active && { backgroundColor: colors.primary }]}>
               <Text
                 style={{
                   fontFamily: labelFont,
-                  fontSize: 11,
+                  fontSize: 13,
                   fontWeight: '700',
                   color: active ? colors.onPrimary : colors.onSurfaceVariant,
                 }}>
@@ -670,6 +676,55 @@ function ThemeRow() {
           );
         })}
       </View>
+    </View>
+  );
+}
+
+function ThemeColorPicker() {
+  const { colors, scheme, themeName, setThemeName } = useAppColors();
+  return (
+    <View style={styles.themeBlock}>
+      <View style={styles.themeBlockHeader}>
+        <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <MaterialIcons name="palette" size={22} color={colors.primary} />
+        </View>
+        <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>App theme</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.swatchScroll}>
+        {THEME_NAMES.map((name) => {
+          const meta = THEME_METADATA[name];
+          const swatch = scheme === 'dark' ? meta.swatchDark : meta.swatchLight;
+          const active = themeName === name;
+          return (
+            <Pressable
+              key={name}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${meta.label} theme`}
+              onPress={() => void setThemeName(name)}
+              style={styles.swatchItem}>
+              <View
+                style={[
+                  styles.swatch,
+                  { backgroundColor: swatch },
+                  active && { borderWidth: 3, borderColor: colors.onSurface },
+                ]}>
+                {active ? <MaterialIcons name="check" size={20} color="#fff" /> : null}
+              </View>
+              <Text
+                style={[
+                  styles.swatchLabel,
+                  { color: active ? colors.onSurface : colors.onSurfaceVariant, fontFamily: labelFont },
+                ]}>
+                {meta.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -810,17 +865,48 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignItems: 'center',
   },
-  themeSegment: {
-    flexDirection: 'row',
-    borderRadius: 999,
-    padding: 3,
-    gap: 2,
+  themeBlock: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    gap: 14,
   },
-  themeChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    minWidth: 44,
+  themeBlockHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
+  },
+  themeSegmentFull: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 4,
+    gap: 3,
+  },
+  themeChipFull: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 11,
+    alignItems: 'center',
+  },
+  swatchScroll: {
+    gap: 18,
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+  swatchItem: {
+    alignItems: 'center',
+    gap: 7,
+  },
+  swatch: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });
