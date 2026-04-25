@@ -22,6 +22,7 @@ import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { elapsedDaysInUtcMonth, formatDaySectionTitle, localDayKey, monthName, utcCalendarMonthNow } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
+import { exportTransactionsCsv } from '@/lib/export-csv';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import type { TransactionWithCategory, TripMonthActivity } from '@/types/finance';
 
@@ -155,6 +156,17 @@ export default function HistoryScreen() {
           Transaction history
         </Text>
         <View style={styles.titleActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Export transactions as CSV"
+            onPress={() => {
+              const filename = `trackr-${year}-${String(month).padStart(2, '0')}.csv`;
+              void exportTransactionsCsv(segment === 'other' ? filtered : [], filename);
+            }}
+            style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
+            hitSlop={MIN_TOUCH_TARGET}>
+            <MaterialIcons name="download" size={20} color={colors.primary} />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={searchOpen ? 'Close search' : 'Search transactions'}

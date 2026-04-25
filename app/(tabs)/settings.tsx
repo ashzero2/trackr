@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -512,6 +513,18 @@ export default function SettingsScreen() {
             destructive
             onPress={onClear}
             disabled={busy}
+          />
+        </Card>
+      </Section>
+
+      <Section title="About">
+        <Card>
+          <Row
+            icon="info-outline"
+            iconBg={colors.surfaceContainerLowest}
+            title="Trackr"
+            subtitle={`Version ${Constants.expoConfig?.version ?? '—'}`}
+            right={null}
           />
         </Card>
       </Section>

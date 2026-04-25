@@ -1,6 +1,6 @@
 import type { TransactionWithCategory } from '@/types/finance';
 
-import { daysInUtcMonth, localDayKey, parseIsoToLocalDayKey } from '@/lib/dates';
+import { daysInUtcMonth, elapsedDaysInUtcMonth, localDayKey, parseIsoToLocalDayKey } from '@/lib/dates';
 
 export function bucketUtcMonthDailyExpenses(
   txs: TransactionWithCategory[],
@@ -66,6 +66,27 @@ export function computeMonthInsight(
     return `${top.categoryName} makes up about ${Math.round(ratio * 100)}% of your spending this month—worth a look if you're trimming costs.`;
   }
   return `You're spread across ${byCat.length} spending categories this month. Nice balance.`;
+}
+
+/**
+ * Projects end-of-month spend from current pace.
+ * Returns null before day 3 (too noisy) or for past months.
+ */
+export function computeVelocityInsight(
+  year: number,
+  month: number,
+  totalExpenseCents: number,
+  prevMonthExpenseCents: number,
+): { projectedCents: number; vsLastMonthPct: number | null } | null {
+  const elapsed = elapsedDaysInUtcMonth(year, month);
+  const total = daysInUtcMonth(year, month);
+  if (elapsed < 3 || elapsed >= total || totalExpenseCents <= 0) return null;
+  const projectedCents = Math.round((totalExpenseCents / elapsed) * total);
+  const vsLastMonthPct =
+    prevMonthExpenseCents > 0
+      ? Math.round(((projectedCents - prevMonthExpenseCents) / prevMonthExpenseCents) * 100)
+      : null;
+  return { projectedCents, vsLastMonthPct };
 }
 
 export function peakDayLabel(values: number[], labels: string[]): string | undefined {

@@ -12,7 +12,7 @@ import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { computeMonthInsight } from '@/lib/analytics-buckets';
+import { computeMonthInsight, computeVelocityInsight } from '@/lib/analytics-buckets';
 import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
@@ -90,6 +90,15 @@ export default function DashboardScreen() {
     [summary, byCat],
   );
 
+  const velocity = useMemo(() => {
+    const { y, m } = utcYearMonth();
+    return computeVelocityInsight(
+      y, m,
+      summary?.totalExpenseCents ?? 0,
+      prevSummary?.totalExpenseCents ?? 0,
+    );
+  }, [summary, prevSummary]);
+
   const todayKey = localDayKey(new Date());
   const yest = new Date();
   yest.setDate(yest.getDate() - 1);
@@ -130,6 +139,20 @@ export default function DashboardScreen() {
         loading={summary === null}
         vsLastMonthPercent={vsLastMonthPercent}
       />
+
+      {velocity ? (
+        <View style={[styles.velocityRow, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <MaterialIcons name="trending-up" size={16} color={colors.onSurfaceVariant} />
+          <Text style={[styles.velocityText, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+            On pace for{' '}
+            <Text style={{ color: colors.onSurface, fontWeight: '700' }}>{format(velocity.projectedCents)}</Text>
+            {' '}this month
+            {velocity.vsLastMonthPct !== null
+              ? `  ${velocity.vsLastMonthPct >= 0 ? '↑' : '↓'}${Math.abs(velocity.vsLastMonthPct)}% vs last month`
+              : null}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.bentoRow}>
         <View style={[styles.bentoCard, { backgroundColor: colors.surfaceContainerLowest }]}>
@@ -240,6 +263,19 @@ const styles = StyleSheet.create({
     minHeight: 200,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  velocityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  velocityText: {
+    fontSize: 13,
+    flex: 1,
   },
   bentoRow: {
     flexDirection: 'row',

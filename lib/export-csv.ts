@@ -1,3 +1,6 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import { Share } from 'react-native';
+
 import { formatPaymentMethodLabel } from '@/lib/payment-method';
 import type { TransactionWithCategory } from '@/types/finance';
 
@@ -28,4 +31,14 @@ export function transactionsToCsv(rows: TransactionWithCategory[]): string {
     ].join(','),
   );
   return [header, ...lines].join('\n');
+}
+
+export async function exportTransactionsCsv(
+  rows: TransactionWithCategory[],
+  filename: string,
+): Promise<void> {
+  const csv = transactionsToCsv(rows);
+  const path = `${FileSystem.cacheDirectory}${filename}`;
+  await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
+  await Share.share({ url: path, title: filename, message: csv });
 }
