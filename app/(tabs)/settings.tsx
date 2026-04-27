@@ -30,14 +30,7 @@ import { useDatabase } from '@/contexts/database-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { transactionsToCsv } from '@/lib/export-csv';
-import {
-  DEFAULT_GEMINI_MODEL,
-  getGeminiApiKey,
-  getGeminiModelId,
-  setGeminiApiKey,
-  setGeminiModelId,
-} from '@/lib/ai-settings';
-import { geminiGenerateContent } from '@/lib/gemini-client';
+import { getGeminiApiKey } from '@/lib/ai-settings';
 import {
   importTransactionRows,
   parseTransactionImportJson,
@@ -60,18 +53,13 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
-  const [geminiKeyDraft, setGeminiKeyDraft] = useState('');
   const [geminiHasKey, setGeminiHasKey] = useState(false);
-  const [geminiModelDraft, setGeminiModelDraft] = useState(DEFAULT_GEMINI_MODEL);
-  const [exbotSectionOpen, setExbotSectionOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         const k = await getGeminiApiKey();
         setGeminiHasKey(Boolean(k?.trim()));
-        setGeminiKeyDraft('');
-        setGeminiModelDraft(await getGeminiModelId());
       })();
     }, []),
   );
@@ -406,147 +394,12 @@ export default function SettingsScreen() {
       {/* ── Integrations ─────────────────────────────────────────── */}
       <Section title="Integrations">
         <Card divided>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: exbotSectionOpen }}
-            accessibilityLabel="Exbot Gemini settings"
-            onPress={() => setExbotSectionOpen((o) => !o)}
-            style={({ pressed }) => [
-              styles.exbotHeaderRow,
-              { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
-            ]}>
-            <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <MaterialIcons name="auto-awesome" size={22} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Google Gemini</Text>
-              <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-                {geminiHasKey ? 'API key saved on this device' : 'Not configured — tap to add a key'}
-              </Text>
-            </View>
-            <MaterialIcons
-              name={exbotSectionOpen ? 'expand-less' : 'expand-more'}
-              size={28}
-              color={colors.onSurfaceVariant}
-            />
-          </Pressable>
-          {exbotSectionOpen ? (
-          <View style={styles.geminiBlock}>
-            <Text style={[styles.geminiHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              Exbot uses your key from Google AI Studio. Chat and smart import send prompts and file snippets to
-              Google’s Gemini API. The key stays on this device.
-            </Text>
-            <Text style={[styles.profileCurrencyLbl, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-              API key
-            </Text>
-            <Text style={[styles.geminiKeyStatus, { color: colors.onSurface, fontFamily: bodyFont }]}>
-              {geminiHasKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.'}
-            </Text>
-            <TextInput
-              value={geminiKeyDraft}
-              onChangeText={setGeminiKeyDraft}
-              placeholder="Paste Gemini API key"
-              placeholderTextColor={colors.onSurfaceVariant}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[
-                styles.nameInput,
-                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
-              ]}
-            />
-            <Text style={[styles.profileCurrencyLbl, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-              Model id
-            </Text>
-            <TextInput
-              value={geminiModelDraft}
-              onChangeText={setGeminiModelDraft}
-              placeholder={DEFAULT_GEMINI_MODEL}
-              placeholderTextColor={colors.onSurfaceVariant}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={[
-                styles.nameInput,
-                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
-              ]}
-            />
-            <Text style={[styles.geminiModelHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              Use {DEFAULT_GEMINI_MODEL} if you see quota errors with other model names.
-            </Text>
-            <View style={styles.geminiActions}>
-              <Pressable
-                onPress={async () => {
-                  try {
-                    if (geminiKeyDraft.trim()) {
-                      await setGeminiApiKey(geminiKeyDraft.trim());
-                      setGeminiHasKey(true);
-                      setGeminiKeyDraft('');
-                    }
-                    await setGeminiModelId(geminiModelDraft.trim() || DEFAULT_GEMINI_MODEL);
-                    Alert.alert('Saved', 'Gemini settings were updated.');
-                  } catch (e) {
-                    Alert.alert('Error', e instanceof Error ? e.message : 'Could not save.');
-                  }
-                }}
-                style={[styles.nameSave, { backgroundColor: colors.primary }]}>
-                <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Save</Text>
-              </Pressable>
-              {geminiHasKey ? (
-                <>
-                  <Pressable
-                    onPress={async () => {
-                      const key = await getGeminiApiKey();
-                      const model = await getGeminiModelId();
-                      if (!key?.trim()) {
-                        Alert.alert('No key saved', 'Paste and save a key first.');
-                        return;
-                      }
-                      setBusy(true);
-                      try {
-                        const result = await geminiGenerateContent(key, model, {
-                          contents: [{ role: 'user', parts: [{ text: 'Reply with just the word: ok' }] }],
-                        });
-                        if (result.ok) {
-                          Alert.alert('Connected ✓', `Model "${model}" responded successfully.`);
-                        } else {
-                          Alert.alert('Connection failed', result.error);
-                        }
-                      } catch (e) {
-                        Alert.alert('Connection failed', e instanceof Error ? e.message : 'Unknown error');
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                    disabled={busy}
-                    style={[styles.nameGhost, { borderColor: colors.outlineVariant, opacity: busy ? 0.5 : 1 }]}>
-                    <Text style={{ color: colors.primary, fontFamily: labelFont }}>Test connection</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert('Remove API key?', 'Exbot will stay disabled until you add a key again.', [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Remove',
-                          style: 'destructive',
-                          onPress: async () => {
-                            try {
-                              await setGeminiApiKey(null);
-                              setGeminiHasKey(false);
-                            } catch (e) {
-                              Alert.alert('Error', e instanceof Error ? e.message : 'Could not remove.');
-                            }
-                          },
-                        },
-                      ]);
-                    }}
-                    style={[styles.nameGhost, { borderColor: colors.outlineVariant }]}>
-                    <Text style={{ color: colors.error, fontFamily: labelFont }}>Remove key</Text>
-                  </Pressable>
-                </>
-              ) : null}
-            </View>
-          </View>
-          ) : null}
+          <PressableRow
+            icon="auto-awesome"
+            title="Exbot — Gemini AI"
+            subtitle={geminiHasKey ? 'API key saved on this device' : 'Not configured — tap to set up'}
+            onPress={() => router.push('/exbot-settings')}
+          />
         </Card>
       </Section>
 
@@ -974,12 +827,6 @@ const styles = StyleSheet.create({
     gap: 14,
     padding: 20,
   },
-  exbotHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 20,
-  },
   rowIcon: {
     width: 40,
     height: 40,
@@ -994,23 +841,6 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: 12,
     marginTop: 2,
-  },
-  profileCurrency: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-    gap: 8,
-  },
-  profileCurrencyLbl: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  profileCurrencyHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 4,
   },
   nameBackdrop: {
     flex: 1,
@@ -1049,30 +879,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 12,
     borderRadius: 999,
-  },
-  geminiBlock: {
-    padding: 20,
-    gap: 10,
-  },
-  geminiHint: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 4,
-  },
-  geminiKeyStatus: {
-    fontSize: 13,
-  },
-  geminiModelHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: -4,
-  },
-  geminiActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 8,
-    alignItems: 'center',
   },
   themeBlock: {
     paddingHorizontal: 20,
