@@ -1,16 +1,28 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+// expo-notifications was removed from Expo Go (Android) in SDK 53.
+// Load it dynamically so the app degrades gracefully in Expo Go instead of crashing.
+let Notifications: typeof import('expo-notifications') | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  Notifications = require('expo-notifications') as typeof import('expo-notifications');
+} catch {
+  // Running in Expo Go on Android SDK 53+ — notifications unavailable.
+  Notifications = null;
+}
+
 // Configure how notifications appear when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 /** AsyncStorage keys for per-type opt-in flags. */
 export const NOTIF_KEY = {
@@ -26,7 +38,7 @@ export const NOTIF_KEY = {
  * Returns `true` if granted.
  */
 export async function requestNotificationPermission(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
+  if (Platform.OS === 'web' || !Notifications) return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') return true;
   const { status } = await Notifications.requestPermissionsAsync();
@@ -46,11 +58,17 @@ export type ScheduleLocalParams = {
 /**
  * Schedule (or immediately display) a local notification.
  * If `triggerDate` is in the past or not provided, the notification fires immediately.
+ * No-ops silently when notifications are unavailable (e.g. Expo Go on Android).
  */
 export async function scheduleLocal(params: ScheduleLocalParams): Promise<void> {
-  const trigger: Notifications.NotificationTriggerInput =
+  if (!Notifications) return;
+
+  const trigger: import('expo-notifications').NotificationTriggerInput =
     params.triggerDate && params.triggerDate > new Date()
-      ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: params.triggerDate }
+      ? {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: params.triggerDate,
+        }
       : null; // null = show immediately
 
   await Notifications.scheduleNotificationAsync({
@@ -66,11 +84,13 @@ export async function scheduleLocal(params: ScheduleLocalParams): Promise<void> 
 
 /** Cancel a specific scheduled notification by its identifier. */
 export async function cancelNotification(id: string): Promise<void> {
+  if (!Notifications) return;
   await Notifications.cancelScheduledNotificationAsync(id);
 }
 
 /** Cancel all pending scheduled notifications. */
 export async function cancelAll(): Promise<void> {
+  if (!Notifications) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
@@ -79,6 +99,8 @@ export async function cancelAll(): Promise<void> {
  * Uses a repeating weekly trigger.
  */
 export async function scheduleWeeklySummary(): Promise<void> {
+  if (!Notifications) return;
+
   // Cancel existing to avoid duplicates
   await cancelNotification('trackr-weekly-summary');
 
@@ -101,13 +123,15 @@ export async function scheduleWeeklySummary(): Promise<void> {
  * Schedule a daily summary notification at 9:00 PM local time.
  */
 export async function scheduleDailySummary(): Promise<void> {
+  if (!Notifications) return;
+
   await cancelNotification('trackr-daily-summary');
 
   await Notifications.scheduleNotificationAsync({
     identifier: 'trackr-daily-summary',
     content: {
       title: '💸 Daily spending check-in',
-      body: 'Tap to review today\'s transactions.',
+      body: "Tap to review today's transactions.",
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
