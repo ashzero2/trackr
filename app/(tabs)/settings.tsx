@@ -43,7 +43,7 @@ import {
 } from '@/lib/transaction-json';
 
 export default function SettingsScreen() {
-  const { colors, scheme, setThemePreference } = useAppColors();
+  const { colors } = useAppColors();
   const { displayName, currencyCode, setProfile, travelModeEnabled, activeTripId } = useUserProfile();
   const { ready, error, db, categories, transactions, trips } = useDatabase();
   const {
@@ -201,7 +201,8 @@ export default function SettingsScreen() {
     <ScreenScaffold subtitle="Configure your financial workspace">
       <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>Settings</Text>
 
-      <Section title="Account & display">
+      {/* ── Profile ──────────────────────────────────────────────── */}
+      <Section title="Profile">
         <Card divided>
           <PressableRow
             icon="person"
@@ -235,6 +236,12 @@ export default function SettingsScreen() {
               colors={colors}
             />
           </View>
+        </Card>
+      </Section>
+
+      {/* ── Appearance ───────────────────────────────────────────── */}
+      <Section title="Appearance">
+        <Card divided>
           <ThemeRow />
           <ThemeColorPicker />
         </Card>
@@ -287,6 +294,37 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
+      {/* ── Customization (moved up — most-used settings) ────────── */}
+      <Section title="Customization">
+        <Card divided>
+          <PressableRow
+            icon="notifications"
+            title="Notifications"
+            subtitle="Budget alerts, recurring reminders, weekly summaries"
+            onPress={() => router.push('/notification-settings')}
+          />
+          <PressableRow
+            icon="repeat"
+            title="Recurring transactions"
+            subtitle="Auto-log bills, subscriptions, and regular expenses"
+            onPress={() => router.push('/manage-recurring')}
+          />
+          <PressableRow
+            icon="category"
+            title="Custom categories"
+            subtitle="Manage expense and income tags"
+            onPress={() => router.push('/manage-categories')}
+          />
+          <PressableRow
+            icon="account-balance-wallet"
+            title="Custom budgets"
+            subtitle="Set limits for specific spending areas"
+            onPress={() => router.push('/manage-budgets')}
+          />
+        </Card>
+      </Section>
+
+      {/* ── Security ─────────────────────────────────────────────── */}
       <Section title="Security">
         <Card divided>
           <PressableRow
@@ -334,6 +372,7 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
+      {/* ── Travel ───────────────────────────────────────────────── */}
       <Section title="Travel">
         <Card divided>
           <Row
@@ -380,7 +419,8 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <Section title="Exbot">
+      {/* ── Integrations ─────────────────────────────────────────── */}
+      <Section title="Integrations">
         <Card divided>
           <Pressable
             accessibilityRole="button"
@@ -526,36 +566,8 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <Section title="Customization">
-        <Card divided>
-          <PressableRow
-            icon="notifications"
-            title="Notifications"
-            subtitle="Budget alerts, recurring reminders, weekly summaries"
-            onPress={() => router.push('/notification-settings')}
-          />
-          <PressableRow
-            icon="repeat"
-            title="Recurring transactions"
-            subtitle="Auto-log bills, subscriptions, and regular expenses"
-            onPress={() => router.push('/manage-recurring')}
-          />
-          <PressableRow
-            icon="category"
-            title="Custom categories"
-            subtitle="Manage expense and income tags"
-            onPress={() => router.push('/manage-categories')}
-          />
-          <PressableRow
-            icon="account-balance-wallet"
-            title="Custom budgets"
-            subtitle="Set limits for specific spending areas"
-            onPress={() => router.push('/manage-budgets')}
-          />
-        </Card>
-      </Section>
-
-      <Section title="Data management">
+      {/* ── Data & backup ────────────────────────────────────────── */}
+      <Section title="Data & backup">
         <Card divided>
           <PressableRow
             icon="import-export"
@@ -578,10 +590,16 @@ export default function SettingsScreen() {
             onPress={onImportJson}
             disabled={busy}
           />
+        </Card>
+      </Section>
+
+      {/* ── Danger zone ──────────────────────────────────────────── */}
+      <Section title="Danger zone">
+        <Card>
           <PressableRow
             icon="delete-forever"
-            title="Clear data"
-            subtitle="Wipe all transactions"
+            title="Clear all data"
+            subtitle="Permanently wipe every transaction — categories and budgets stay"
             destructive
             onPress={onClear}
             disabled={busy}
@@ -589,6 +607,7 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
+      {/* ── About ────────────────────────────────────────────────── */}
       <Section title="About">
         <Card>
           <Row
