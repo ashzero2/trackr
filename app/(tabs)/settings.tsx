@@ -2,10 +2,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
   Pressable,
   ScrollView,
@@ -16,10 +17,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { THEME_METADATA, THEME_NAMES } from '@/constants/design-tokens';
 
-import { CurrencyPickerField } from '@/components/currency-picker-field';
+import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
+import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
 import { ScreenScaffold } from '@/components/screen-scaffold';
 import { useAppLock } from '@/contexts/app-lock-context';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -213,29 +216,10 @@ export default function SettingsScreen() {
               setNameModalOpen(true);
             }}
           />
-          <View style={styles.profileCurrency}>
-            <Text style={[styles.profileCurrencyLbl, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-              Primary currency
-            </Text>
-            <Text style={[styles.profileCurrencyHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              Amounts are not converted when you change this—only how they are labeled.
-            </Text>
-            <CurrencyPickerField
-              value={currencyCode}
-              onChange={(code) => {
-                if (code === currencyCode) return;
-                Alert.alert(
-                  'Change currency?',
-                  'Existing numbers stay the same; only the symbol and grouping change. Use this if your data is already in the new currency.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Change', onPress: () => void setProfile({ currencyCode: code }) },
-                  ],
-                );
-              }}
-              colors={colors}
-            />
-          </View>
+          <CurrencyRow
+            currencyCode={currencyCode}
+            onConfirm={(code) => void setProfile({ currencyCode: code })}
+          />
         </Card>
       </Section>
 
@@ -399,7 +383,7 @@ export default function SettingsScreen() {
             subtitle="Lifecycle, active trip, daily budgets"
             onPress={() => router.push('/manage-trips')}
           />
-          <PressableRow
+          <SecondaryRow
             icon="build"
             title="Repair trip summaries"
             subtitle="Rebuild cached totals if anything looks off"
@@ -635,6 +619,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Card({ children, divided }: { children: React.ReactNode; divided?: boolean }) {
   const { colors } = useAppColors();
+  const kids = React.Children.toArray(children).filter(Boolean);
   return (
     <View
       style={[
@@ -642,7 +627,14 @@ function Card({ children, divided }: { children: React.ReactNode; divided?: bool
         { backgroundColor: colors.surfaceContainerLow },
         divided && { overflow: 'hidden' },
       ]}>
-      {children}
+      {divided
+        ? kids.map((child, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />}
+              {child}
+            </React.Fragment>
+          ))
+        : children}
     </View>
   );
 }
@@ -714,6 +706,129 @@ function PressableRow({
         <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>{subtitle}</Text>
       </View>
       <MaterialIcons name="chevron-right" size={22} color={destructive ? colors.error : colors.onSurfaceVariant} />
+    </Pressable>
+  );
+}
+
+function CurrencyRow({ currencyCode, onConfirm }: { currencyCode: string; onConfirm: (code: string) => void }) {
+  const { colors } = useAppColors();
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const label = useMemo(() => {
+    const c = SUPPORTED_CURRENCIES.find((c) => c.code === currencyCode);
+    return c ? `${c.label} (${c.code})` : currencyCode;
+  }, [currencyCode]);
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return [...SUPPORTED_CURRENCIES];
+    return SUPPORTED_CURRENCIES.filter(
+      (c) => c.code.toLowerCase().includes(s) || c.label.toLowerCase().includes(s),
+    );
+  }, [q]);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [
+          styles.pressRow,
+          { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+        ]}>
+        <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <MaterialIcons name="attach-money" size={22} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>Primary currency</Text>
+          <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>{label}</Text>
+        </View>
+        <MaterialIcons name="chevron-right" size={22} color={colors.onSurfaceVariant} />
+      </Pressable>
+      <Modal visible={open} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={['top']}>
+          <View style={styles.pickerHead}>
+            <Text style={[styles.pickerTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+              Select currency
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Done"
+              onPress={() => { setOpen(false); setQ(''); }}
+              style={{ minWidth: MIN_TOUCH_TARGET, minHeight: MIN_TOUCH_TARGET, justifyContent: 'center' }}>
+              <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.pickerHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+            Existing amounts stay the same — only the symbol changes.
+          </Text>
+          <TextInput
+            value={q}
+            onChangeText={setQ}
+            placeholder="Search"
+            placeholderTextColor={colors.onSurfaceVariant}
+            style={[styles.pickerSearch, { color: colors.onSurface, backgroundColor: colors.surfaceContainerLowest, fontFamily: bodyFont }]}
+          />
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.code}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const sel = item.code === currencyCode;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sel }}
+                  onPress={() => {
+                    if (item.code !== currencyCode) {
+                      Alert.alert(
+                        'Change currency?',
+                        `Switch to ${item.label} (${item.code})? Existing numbers stay the same.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Change', onPress: () => { onConfirm(item.code); setOpen(false); setQ(''); } },
+                        ],
+                      );
+                    } else {
+                      setOpen(false);
+                      setQ('');
+                    }
+                  }}
+                  style={[
+                    styles.pickerRow,
+                    { borderBottomColor: colors.outlineVariant },
+                    sel && { backgroundColor: colors.surfaceContainerLow },
+                  ]}>
+                  <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>{item.label}</Text>
+                  <Text style={{ color: colors.onSurfaceVariant, fontFamily: labelFont }}>{item.code}</Text>
+                </Pressable>
+              );
+            }}
+          />
+        </SafeAreaView>
+      </Modal>
+    </>
+  );
+}
+
+function SecondaryRow({
+  icon, title, subtitle, onPress, disabled,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string; subtitle: string; onPress: () => void; disabled?: boolean;
+}) {
+  const { colors } = useAppColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.secondaryRow,
+        { backgroundColor: pressed ? colors.surfaceContainerHigh : 'transparent' },
+        disabled && { opacity: 0.5 },
+      ]}>
+      <MaterialIcons name={icon} size={18} color={colors.onSurfaceVariant} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.secondaryTitle, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>{title}</Text>
+        <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>{subtitle}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -995,5 +1110,53 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 74,
+  },
+  pickerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  pickerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  pickerHint: {
+    fontSize: 13,
+    lineHeight: 19,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  pickerSearch: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  secondaryTitle: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
