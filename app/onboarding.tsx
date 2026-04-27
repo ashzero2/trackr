@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Crypto from 'expo-crypto';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -25,11 +26,30 @@ import { lightImpact } from '@/lib/haptics';
 
 type Step = 0 | 1 | 2;
 
+const INTRO_SLIDES = [
+  {
+    icon: 'receipt-long' as const,
+    title: 'Track every expense',
+    subtitle: 'Log cash, card, and foreign-currency transactions in seconds.',
+  },
+  {
+    icon: 'account-balance-wallet' as const,
+    title: 'Set budgets, stay on track',
+    subtitle: 'Get alerts when you approach your monthly category limits.',
+  },
+  {
+    icon: 'smart-toy' as const,
+    title: 'Ask ExBot anything',
+    subtitle: 'Your AI spending assistant answers questions about your own data instantly.',
+  },
+] as const;
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { colors } = useAppColors();
   const { completeOnboarding, onboardingComplete } = useUserProfile();
   const { ready, trips } = useDatabase();
+  const [introStep, setIntroStep] = useState<0 | 1 | 2 | 3>(0);
   const [step, setStep] = useState<Step>(0);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -102,7 +122,64 @@ export default function OnboardingScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {step === 0 ? (
+          {/* ── Intro pager (slides 0-2) ─────────────────────────────── */}
+          {introStep < 3 ? (() => {
+            const slide = INTRO_SLIDES[introStep];
+            return (
+              <>
+                <View style={styles.introIllustration}>
+                  <View style={[styles.introIconCircle, { backgroundColor: colors.primaryContainer }]}>
+                    <MaterialIcons name={slide.icon} size={64} color={colors.primary} />
+                  </View>
+                </View>
+
+                <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>
+                  {slide.title}
+                </Text>
+                <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                  {slide.subtitle}
+                </Text>
+
+                <View style={styles.dots}>
+                  {INTRO_SLIDES.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        {
+                          backgroundColor: i === introStep ? colors.primary : colors.surfaceContainerHighest,
+                          width: i === introStep ? 20 : 8,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={introStep < 2 ? 'Next' : 'Get started'}
+                  disabled={busy}
+                  onPress={() => setIntroStep((s) => Math.min(s + 1, 3) as 0 | 1 | 2 | 3)}
+                  style={[styles.cta, { backgroundColor: colors.primary, opacity: busy ? 0.7 : 1 }]}>
+                  <Text style={{ color: colors.onPrimary, fontFamily: headlineFont, fontWeight: '700' }}>
+                    {introStep < 2 ? 'Next' : 'Get started'}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip introduction"
+                  disabled={busy}
+                  onPress={() => setIntroStep(3)}
+                  style={styles.back}>
+                  <Text style={{ color: colors.onSurfaceVariant, fontFamily: labelFont }}>Skip intro</Text>
+                </Pressable>
+              </>
+            );
+          })() : null}
+
+          {/* ── Form flow (steps 0-2, shown after intro is done) ────── */}
+          {introStep >= 3 && step === 0 ? (
             <>
               <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>Welcome</Text>
               <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -146,7 +223,7 @@ export default function OnboardingScreen() {
             </>
           ) : null}
 
-          {step === 1 ? (
+          {introStep >= 3 && step === 1 ? (
             <>
               <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>Travel</Text>
               <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -171,7 +248,7 @@ export default function OnboardingScreen() {
             </>
           ) : null}
 
-          {step === 2 ? (
+          {introStep >= 3 && step === 2 ? (
             <>
               <Text style={[styles.title, { color: colors.primary, fontFamily: headlineFont }]}>First trip</Text>
               <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -296,5 +373,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     color: '#ffffff',
+  },
+  introIllustration: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 32,
+    paddingBottom: 24,
+  },
+  introIconCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 28,
+    marginBottom: 4,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
   },
 });

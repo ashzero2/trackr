@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { EmptyState } from '@/components/empty-state';
 import { FabGradient } from '@/components/fab-gradient';
 import { ScreenScaffold } from '@/components/screen-scaffold';
 import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
@@ -55,6 +56,7 @@ export default function HistoryScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!transactions || !trips) return;
@@ -71,6 +73,12 @@ export default function HistoryScreen() {
       if (ready && transactions && trips) load();
     }, [ready, transactions, trips, load]),
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const onDelete = useCallback(
     async (id: string) => {
@@ -179,6 +187,8 @@ export default function HistoryScreen() {
       headerTitle="History"
       headerRight={headerRight}
       contentBottomExtra={72}
+      refreshing={refreshing}
+      onRefresh={() => { void onRefresh(); }}
       fab={
         <FabGradient
           accessibilityLabel="Add transaction"
@@ -314,9 +324,11 @@ export default function HistoryScreen() {
       <View style={{ gap: 24, marginTop: 8 }}>
         {segment === 'trips' ? (
           filteredTrips.length === 0 ? (
-            <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont }}>
-              No trip-linked transactions this month.
-            </Text>
+            <EmptyState
+              icon="flight"
+              title="No trips this month"
+              subtitle="Trip-linked transactions will appear here"
+            />
           ) : (
             filteredTrips.map((t) => (
               <Pressable
@@ -343,9 +355,11 @@ export default function HistoryScreen() {
             ))
           )
         ) : grouped.length === 0 ? (
-          <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont }}>
-            No everyday transactions this month.
-          </Text>
+          <EmptyState
+            icon="receipt-long"
+            title={`No transactions in ${monthName(month)} ${year}`}
+            subtitle={query ? 'Try a different search term or clear filters' : 'Tap + to log a transaction'}
+          />
         ) : (
           grouped.map(({ dayKey, items }) => (
             <View key={dayKey}>

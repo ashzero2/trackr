@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/empty-state';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -140,9 +141,11 @@ export default function ManageBudgetsScreen() {
           );
         }}
         ListEmptyComponent={
-          <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, padding: 16 }}>
-            No expense categories. Add some under Custom categories first.
-          </Text>
+          <EmptyState
+            icon="category"
+            title="No expense categories"
+            subtitle="Add categories under Settings → Custom categories first"
+          />
         }
       />
 

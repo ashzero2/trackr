@@ -3,6 +3,8 @@ import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EmptyState } from '@/components/empty-state';
+
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { DashboardHeroCard } from '@/components/gradient-hero-preview';
 import { FabGradient } from '@/components/fab-gradient';
@@ -27,6 +29,7 @@ export default function DashboardScreen() {
   const { format } = useFormatMoney();
   const { ready, error, transactions, budgets, dataVersion } = useDatabase();
   const lastSeenVersion = useRef(-1);
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [prevSummary, setPrevSummary] = useState<MonthSummary | null>(null);
   const [recent, setRecent] = useState<TransactionWithCategory[]>([]);
@@ -62,6 +65,14 @@ export default function DashboardScreen() {
       }
     }, [ready, transactions, budgets, load, dataVersion]),
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Force a reload regardless of dataVersion
+    lastSeenVersion.current = -1;
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const onDelete = useCallback(
     async (id: string) => {
@@ -132,6 +143,8 @@ export default function DashboardScreen() {
   return (
     <ScreenScaffold
       contentBottomExtra={72}
+      refreshing={refreshing}
+      onRefresh={() => { void onRefresh(); }}
       fab={
         <FabGradient
           accessibilityLabel="Add transaction"
@@ -229,12 +242,13 @@ export default function DashboardScreen() {
 
       <View style={styles.activityGap}>
         {groupedRecent.length === 0 && (
-          <View style={[styles.emptyState, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <MaterialIcons name="receipt-long" size={36} color={colors.onSurfaceVariant} />
-            <Text style={[styles.emptyStateText, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              No transactions yet. Tap + to add your first one.
-            </Text>
-          </View>
+          <EmptyState
+            icon="receipt-long"
+            title="Nothing logged yet"
+            subtitle="Tap + to add your first transaction"
+            actionLabel="Add transaction"
+            onAction={() => router.push('/add-transaction')}
+          />
         )}
         {groupedRecent.map(({ dayKey, items }) => (
           <View key={dayKey} style={styles.dayBlock}>
@@ -375,16 +389,5 @@ const styles = StyleSheet.create({
   },
   emptyBudgetLink: {
     flex: 1,
-  },
-  emptyState: {
-    borderRadius: 24,
-    padding: 28,
-    alignItems: 'center',
-    gap: 12,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
   },
 });

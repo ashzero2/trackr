@@ -9,7 +9,7 @@ import type {
   TransactionSqlRow,
   TransactionWithCategorySqlRow,
 } from '@/types/sqlite-rows';
-import type { MonthSummary, Transaction, TransactionWithCategory } from '@/types/finance';
+import type { EntryType, MonthSummary, PaymentMethod, Transaction, TransactionWithCategory } from '@/types/finance';
 
 const TX_SELECT = `t.id, t.amount_cents, t.type, t.category_id, t.occurred_at, t.note, t.payment_method, t.created_at,
   t.trip_id, t.currency_code, t.amount_base_cents, t.exchange_rate_to_base`;
@@ -327,6 +327,71 @@ export class TransactionRepository {
        ORDER BY t.occurred_at DESC
        LIMIT ?`,
       [startIso, endIso, cap],
+    );
+    return rows.map(mapTxJoin);
+  }
+
+  /**
+   * Full-text + filter search across all transactions (SQL-backed).
+   * All params are optional — omitting all returns the full history.
+   */
+  async search(params: {
+    query?: string;
+    type?: EntryType;
+    paymentMethod?: PaymentMethod;
+    categoryId?: string;
+    fromDate?: string;
+    toDate?: string;
+    minCents?: number;
+    maxCents?: number;
+  }): Promise<TransactionWithCategory[]> {
+    const conditions: string[] = [];
+    const args: (string | number)[] = [];
+
+    if (params.query?.trim()) {
+      conditions.push('(LOWER(c.name) LIKE ? OR LOWER(t.note) LIKE ?)');
+      const like = `%${params.query.trim().toLowerCase()}%`;
+      args.push(like, like);
+    }
+    if (params.type) {
+      conditions.push('t.type = ?');
+      args.push(params.type);
+    }
+    if (params.paymentMethod) {
+      conditions.push('t.payment_method = ?');
+      args.push(params.paymentMethod);
+    }
+    if (params.categoryId) {
+      conditions.push('t.category_id = ?');
+      args.push(params.categoryId);
+    }
+    if (params.fromDate) {
+      conditions.push('t.occurred_at >= ?');
+      args.push(params.fromDate);
+    }
+    if (params.toDate) {
+      conditions.push('t.occurred_at <= ?');
+      args.push(params.toDate);
+    }
+    if (params.minCents !== undefined) {
+      conditions.push('t.amount_cents >= ?');
+      args.push(params.minCents);
+    }
+    if (params.maxCents !== undefined) {
+      conditions.push('t.amount_cents <= ?');
+      args.push(params.maxCents);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = await this.db.getAllAsync<TransactionWithCategorySqlRow>(
+      `SELECT ${TX_SELECT},
+              c.name AS category_name, c.icon_key AS category_icon_key
+       FROM transactions t
+       JOIN categories c ON c.id = t.category_id
+       ${where}
+       ORDER BY t.occurred_at DESC
+       LIMIT 500`,
+      args,
     );
     return rows.map(mapTxJoin);
   }

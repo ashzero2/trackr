@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { EmptyState } from '@/components/empty-state';
 import { SpendingTrendChart } from '@/components/spending-trend-chart';
 import { ScreenScaffold } from '@/components/screen-scaffold';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
@@ -28,6 +29,7 @@ export default function AnalyticsScreen() {
   const { travelModeEnabled } = useUserProfile();
   const { ready, error, transactions, budgets, categories, trips } = useDatabase();
   const [mode, setMode] = useState<'week' | 'month'>('month');
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [budgetList, setBudgetList] = useState<Budget[]>([]);
   const [spentByCat, setSpentByCat] = useState<{ categoryId: string; categoryName: string; spentCents: number }[]>(
@@ -93,6 +95,12 @@ export default function AnalyticsScreen() {
     }, [ready, transactions, budgets, categories, trips, load]),
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
   // Re-runs whenever `load` ref changes — which happens when `mode` changes,
   // since mode is in load's useCallback deps. This ensures chart data reloads
   // when the user toggles week/month while already on this screen.
@@ -137,7 +145,9 @@ export default function AnalyticsScreen() {
   }
 
   return (
-    <ScreenScaffold>
+    <ScreenScaffold
+      refreshing={refreshing}
+      onRefresh={() => { void onRefresh(); }}>
       <View style={styles.headRow}>
         <View>
           <Text style={[styles.kicker, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -233,9 +243,13 @@ export default function AnalyticsScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.budgetScroll}>
         {budgetCards.length === 0 ? (
-          <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, maxWidth: 260 }}>
-            No category budgets for this month yet.
-          </Text>
+          <EmptyState
+            icon="account-balance-wallet"
+            title="No budgets set"
+            subtitle="Add category budgets to track your limits"
+            actionLabel="Set budgets"
+            onAction={() => router.push('/manage-budgets')}
+          />
         ) : (
           budgetCards.map((b) => {
             const spent = spentByCat.find((s) => s.categoryId === b.categoryId)?.spentCents ?? 0;

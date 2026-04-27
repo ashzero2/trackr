@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
@@ -18,9 +18,13 @@ type ScreenScaffoldProps = {
   contentBottomExtra?: number;
   /** Floating overlay (e.g. gradient FAB); position absolute inside main area */
   fab?: React.ReactNode;
+  /** When true, shows the system pull-to-refresh spinner. Pass `onRefresh` to handle the gesture. */
+  refreshing?: boolean;
+  /** Called when the user pulls to refresh. */
+  onRefresh?: () => void;
 };
 
-export function ScreenScaffold({ children, headerTitle, headerRight, subtitle, contentBottomExtra = 0, fab }: ScreenScaffoldProps) {
+export function ScreenScaffold({ children, headerTitle, headerRight, subtitle, contentBottomExtra = 0, fab, refreshing, onRefresh }: ScreenScaffoldProps) {
   const { colors } = useAppColors();
   const bottomPad = TAB_BAR_EXTRA + contentBottomExtra;
 
@@ -38,7 +42,12 @@ export function ScreenScaffold({ children, headerTitle, headerRight, subtitle, c
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }]}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} />
+            ) : undefined
+          }>
           {children}
         </ScrollView>
         {fab}

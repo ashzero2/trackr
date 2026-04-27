@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
+import { EmptyState } from '@/components/empty-state';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -189,7 +190,13 @@ export default function ManageTripsScreen() {
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
         ) : rows.length === 0 ? (
-          <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant }}>No trips yet.</Text>
+          <EmptyState
+            icon="flight-takeoff"
+            title="No trips yet"
+            subtitle="Tap New trip to start tracking a journey"
+            actionLabel="New trip"
+            onAction={() => { setNewTripName(''); setCreateModalOpen(true); }}
+          />
         ) : (
           rows.map((t) => {
             const meta = parseTripMetadata(t.metadata);
