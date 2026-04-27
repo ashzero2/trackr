@@ -473,6 +473,12 @@ export default function SettingsScreen() {
       <Section title="Customization">
         <Card divided>
           <PressableRow
+            icon="notifications"
+            title="Notifications"
+            subtitle="Budget alerts, recurring reminders, weekly summaries"
+            onPress={() => router.push('/notification-settings')}
+          />
+          <PressableRow
             icon="repeat"
             title="Recurring transactions"
             subtitle="Auto-log bills, subscriptions, and regular expenses"

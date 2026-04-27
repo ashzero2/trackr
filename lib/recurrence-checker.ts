@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
 import type { RecurringRepository } from '@/data/recurring-repository';
 import type { TransactionRepository } from '@/data/transaction-repository';
+import { NOTIF_KEY, scheduleLocal } from '@/lib/notifications';
 import { computeNextDue, todayIsoDate } from '@/lib/recurrence-engine';
 import type { RecurringTransaction } from '@/types/finance';
 
@@ -28,6 +30,17 @@ export async function checkAndProcessRecurring(deps: RecurrenceCheckerDeps): Pro
     if (rule.autoInsert) {
       await autoInsertRule(rule, today, deps);
     } else {
+      // Schedule a reminder notification if the user has it enabled
+      const reminderEnabled = await AsyncStorage.getItem(NOTIF_KEY.recurringReminder);
+      if (reminderEnabled !== 'false') {
+        const amountLabel = (rule.amountCents / 100).toFixed(2);
+        await scheduleLocal({
+          id: `recurring-due-${rule.id}`,
+          title: `🔄 ${rule.title} is due today`,
+          body: `${amountLabel} — open Trackr to log it`,
+          data: { ruleId: rule.id },
+        });
+      }
       deps.onConfirmRequired?.(rule);
     }
   }

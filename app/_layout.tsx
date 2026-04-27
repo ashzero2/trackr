@@ -10,9 +10,49 @@ import { ColorSchemeProvider } from '@/contexts/color-scheme-context';
 import { DatabaseProvider, useDatabase } from '@/contexts/database-context';
 import { UserProfileProvider } from '@/contexts/user-profile-context';
 import { useAppFonts } from '@/hooks/use-app-fonts';
+import { checkBudgetAlerts } from '@/lib/budget-alert';
 import { checkAndProcessRecurring } from '@/lib/recurrence-checker';
+import { requestNotificationPermission } from '@/lib/notifications';
 
 SplashScreen.preventAutoHideAsync();
+
+/** Requests notification permission once on first launch. */
+function NotificationPermissionRequester() {
+  const { ready } = useDatabase();
+  const requested = useRef(false);
+
+  useEffect(() => {
+    if (!ready || requested.current) return;
+    requested.current = true;
+    void requestNotificationPermission();
+  }, [ready]);
+
+  return null;
+}
+
+/**
+ * Watches `dataVersion` and fires budget alerts whenever a transaction is written.
+ * This avoids passing repo references through the TransactionRepository constructor.
+ */
+function BudgetAlertWatcher() {
+  const { dataVersion, transactions, budgets } = useDatabase();
+  const prevVersion = useRef(dataVersion);
+
+  useEffect(() => {
+    if (dataVersion === prevVersion.current) return;
+    prevVersion.current = dataVersion;
+    if (transactions && budgets) {
+      const now = new Date();
+      void checkBudgetAlerts(
+        { transactions, budgets },
+        now.getUTCFullYear(),
+        now.getUTCMonth() + 1,
+      );
+    }
+  }, [dataVersion, transactions, budgets]);
+
+  return null;
+}
 
 /** Runs the recurrence checker whenever the app comes to the foreground. */
 function RecurrenceAppStateListener() {
@@ -53,6 +93,8 @@ export default function RootLayout() {
     <ColorSchemeProvider>
       <UserProfileProvider>
         <DatabaseProvider>
+          <NotificationPermissionRequester />
+          <BudgetAlertWatcher />
           <RecurrenceAppStateListener />
           <NavigationThemeRoot>
             <Stack initialRouteName="index">
@@ -72,6 +114,7 @@ export default function RootLayout() {
                 name="add-recurring"
                 options={{ presentation: 'modal', title: 'New recurring rule' }}
               />
+              <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
             </Stack>
           </NavigationThemeRoot>
         </DatabaseProvider>
