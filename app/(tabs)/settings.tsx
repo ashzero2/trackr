@@ -231,7 +231,7 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <Modal visible={nameModalOpen} transparent animationType="fade">
+      <Modal visible={nameModalOpen} transparent animationType="fade" accessibilityViewIsModal>
         <Pressable style={styles.nameBackdrop} onPress={() => setNameModalOpen(false)}>
           <Pressable
             onPress={(e) => e.stopPropagation()}
@@ -685,6 +685,9 @@ function PressableRow({
   const { colors } = useAppColors();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${subtitle}`}
+      accessibilityHint={destructive ? 'This is a destructive action' : undefined}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
@@ -728,6 +731,8 @@ function CurrencyRow({ currencyCode, onConfirm }: { currencyCode: string; onConf
   return (
     <>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Primary currency, ${label}`}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.pressRow,
@@ -817,6 +822,8 @@ function SecondaryRow({
   const { colors } = useAppColors();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}, ${subtitle}`}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [
