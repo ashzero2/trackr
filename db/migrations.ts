@@ -42,7 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_budget_category_month
   ON budgets(category_id, year, month) WHERE category_id IS NOT NULL;
 `;
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 const MIGRATION_V3_CREATE_TRIPS = `
 CREATE TABLE IF NOT EXISTS trips (
@@ -68,6 +68,30 @@ CREATE TABLE IF NOT EXISTS trip_summaries (
   last_updated TEXT NOT NULL,
   FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE RESTRICT
 );
+`;
+
+const MIGRATION_V4_RECURRING = `
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+  id               TEXT PRIMARY KEY NOT NULL,
+  title            TEXT NOT NULL,
+  amount_cents     INTEGER NOT NULL CHECK (amount_cents > 0),
+  type             TEXT NOT NULL CHECK (type IN ('expense', 'income')),
+  category_id      TEXT NOT NULL,
+  payment_method   TEXT NOT NULL DEFAULT 'OTHER',
+  note             TEXT,
+  currency_code    TEXT,
+  frequency        TEXT NOT NULL CHECK (frequency IN ('daily', 'weekly', 'biweekly', 'monthly', 'yearly')),
+  day_of_month     INTEGER CHECK (day_of_month IS NULL OR (day_of_month >= 1 AND day_of_month <= 31)),
+  day_of_week      INTEGER CHECK (day_of_week IS NULL OR (day_of_week >= 0 AND day_of_week <= 6)),
+  starts_at        TEXT NOT NULL,
+  ends_at          TEXT,
+  next_due_at      TEXT NOT NULL,
+  auto_insert      INTEGER NOT NULL DEFAULT 0 CHECK (auto_insert IN (0, 1)),
+  last_inserted_at TEXT,
+  created_at       TEXT NOT NULL,
+  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS idx_recurring_next_due ON recurring_transactions(next_due_at);
 `;
 
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
@@ -104,5 +128,11 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
     );
     await db.execAsync('PRAGMA user_version = 3');
     version = 3;
+  }
+
+  if (version < 4) {
+    await db.execAsync(MIGRATION_V4_RECURRING);
+    await db.execAsync('PRAGMA user_version = 4');
+    version = 4;
   }
 }

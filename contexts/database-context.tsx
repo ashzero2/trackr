@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 
 import { BudgetRepository } from '@/data/budget-repository';
 import { CategoryRepository } from '@/data/category-repository';
+import { RecurringRepository } from '@/data/recurring-repository';
 import { TransactionRepository } from '@/data/transaction-repository';
 import { TripRepository } from '@/data/trip-repository';
 import { openAndPrepareDatabase } from '@/db/open-database';
@@ -12,6 +13,7 @@ export type Repositories = {
   transactions: TransactionRepository;
   trips: TripRepository;
   budgets: BudgetRepository;
+  recurring: RecurringRepository;
 };
 
 type DatabaseContextValue = {
@@ -22,6 +24,7 @@ type DatabaseContextValue = {
   transactions: TransactionRepository | null;
   trips: TripRepository | null;
   budgets: BudgetRepository | null;
+  recurring: RecurringRepository | null;
   /** Incremented every time a transaction is inserted, updated, or deleted. */
   dataVersion: number;
   bumpDataVersion: () => void;
@@ -75,6 +78,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         transactions: null,
         trips: null,
         budgets: null,
+        recurring: null,
         dataVersion,
         bumpDataVersion: bump,
       };
@@ -88,6 +92,7 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       trips,
       transactions: new TransactionRepository(db, trips, bump),
       budgets: new BudgetRepository(db),
+      recurring: new RecurringRepository(db),
       dataVersion,
       bumpDataVersion: bump,
     };
@@ -105,12 +110,12 @@ export function useDatabase(): DatabaseContextValue {
 }
 
 export function useRepositories(): Repositories & { db: SQLiteDatabase } {
-  const { ready, db, categories, transactions, trips, budgets, error } = useDatabase();
+  const { ready, db, categories, transactions, trips, budgets, recurring, error } = useDatabase();
   if (error) {
     throw error;
   }
-  if (!ready || !db || !categories || !transactions || !trips || !budgets) {
+  if (!ready || !db || !categories || !transactions || !trips || !budgets || !recurring) {
     throw new Error('Database not ready');
   }
-  return { db, categories, transactions, trips, budgets };
+  return { db, categories, transactions, trips, budgets, recurring };
 }

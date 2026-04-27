@@ -83,6 +83,32 @@ export type MonthSummary = {
   totalIncomeCents: number;
 };
 
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+
+export type RecurringTransaction = {
+  id: string;
+  title: string;
+  amountCents: number;
+  type: EntryType;
+  categoryId: string;
+  paymentMethod: PaymentMethod;
+  note: string | null;
+  currencyCode: string | null;
+  frequency: RecurrenceFrequency;
+  /** Day of month (1–31) — used for `monthly` frequency */
+  dayOfMonth: number | null;
+  /** Day of week (0=Sun … 6=Sat) — used for `weekly` and `biweekly` */
+  dayOfWeek: number | null;
+  startsAt: string;
+  endsAt: string | null;
+  /** ISO date of the next occurrence */
+  nextDueAt: string;
+  /** false = show confirmation prompt; true = insert silently */
+  autoInsert: boolean;
+  lastInsertedAt: string | null;
+  createdAt: string;
+};
+
 /** Base-currency minor units for analytics (falls back to stored amount). */
 export function effectiveBaseCents(tx: Pick<Transaction, 'amountCents' | 'amountBaseCents'>): number {
   return tx.amountBaseCents ?? tx.amountCents;

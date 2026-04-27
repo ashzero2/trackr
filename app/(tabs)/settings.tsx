@@ -473,6 +473,12 @@ export default function SettingsScreen() {
       <Section title="Customization">
         <Card divided>
           <PressableRow
+            icon="repeat"
+            title="Recurring transactions"
+            subtitle="Auto-log bills, subscriptions, and regular expenses"
+            onPress={() => router.push('/manage-recurring')}
+          />
+          <PressableRow
             icon="category"
             title="Custom categories"
             subtitle="Manage expense and income tags"

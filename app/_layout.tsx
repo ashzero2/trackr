@@ -1,16 +1,39 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { NavigationThemeRoot } from '@/components/navigation-theme-root';
 import { ColorSchemeProvider } from '@/contexts/color-scheme-context';
-import { DatabaseProvider } from '@/contexts/database-context';
+import { DatabaseProvider, useDatabase } from '@/contexts/database-context';
 import { UserProfileProvider } from '@/contexts/user-profile-context';
 import { useAppFonts } from '@/hooks/use-app-fonts';
+import { checkAndProcessRecurring } from '@/lib/recurrence-checker';
 
 SplashScreen.preventAutoHideAsync();
+
+/** Runs the recurrence checker whenever the app comes to the foreground. */
+function RecurrenceAppStateListener() {
+  const { recurring, transactions, ready } = useDatabase();
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    if (!ready) return;
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        if (recurring && transactions) {
+          void checkAndProcessRecurring({ recurring, transactions });
+        }
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [ready, recurring, transactions]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
@@ -30,22 +53,25 @@ export default function RootLayout() {
     <ColorSchemeProvider>
       <UserProfileProvider>
         <DatabaseProvider>
+          <RecurrenceAppStateListener />
           <NavigationThemeRoot>
             <Stack initialRouteName="index">
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="onboarding" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="add-transaction"
-              options={{
-                presentation: 'modal',
-                title: 'Add transaction',
-              }}
-            />
-            <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
-            <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
-            <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
-            <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
+              <Stack.Screen
+                name="add-transaction"
+                options={{ presentation: 'modal', title: 'Add transaction' }}
+              />
+              <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
+              <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
+              <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
+              <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
+              <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false }} />
+              <Stack.Screen
+                name="add-recurring"
+                options={{ presentation: 'modal', title: 'New recurring rule' }}
+              />
             </Stack>
           </NavigationThemeRoot>
         </DatabaseProvider>
