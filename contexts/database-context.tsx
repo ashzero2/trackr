@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { BudgetRepository } from '@/data/budget-repository';
 import { CategoryRepository } from '@/data/category-repository';
@@ -22,6 +22,9 @@ type DatabaseContextValue = {
   transactions: TransactionRepository | null;
   trips: TripRepository | null;
   budgets: BudgetRepository | null;
+  /** Incremented every time a transaction is inserted, updated, or deleted. */
+  dataVersion: number;
+  bumpDataVersion: () => void;
 };
 
 const DatabaseContext = createContext<DatabaseContextValue | null>(null);
@@ -30,6 +33,11 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [db, setDb] = useState<SQLiteDatabase | null>(null);
+  const [dataVersion, setDataVersion] = useState(0);
+  // Stable callback reference so repositories don't need re-instantiation on version change
+  const bumpDataVersion = useCallback(() => setDataVersion((v) => v + 1), []);
+  const bumpRef = useRef(bumpDataVersion);
+  bumpRef.current = bumpDataVersion;
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +64,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<DatabaseContextValue>(() => {
+    // Stable bump thunk so that changing dataVersion doesn't re-create repositories
+    const bump = () => bumpRef.current();
     if (!ready || !db) {
       return {
         ready: false,
@@ -65,6 +75,8 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
         transactions: null,
         trips: null,
         budgets: null,
+        dataVersion,
+        bumpDataVersion: bump,
       };
     }
     const trips = new TripRepository(db);
@@ -74,10 +86,12 @@ export function DatabaseProvider({ children }: { children: React.ReactNode }) {
       db,
       categories: new CategoryRepository(db),
       trips,
-      transactions: new TransactionRepository(db, trips),
+      transactions: new TransactionRepository(db, trips, bump),
       budgets: new BudgetRepository(db),
+      dataVersion,
+      bumpDataVersion: bump,
     };
-  }, [ready, error, db]);
+  }, [ready, error, db, dataVersion]);
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 }

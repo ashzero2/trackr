@@ -48,6 +48,7 @@ export class TransactionRepository {
   constructor(
     private readonly db: SQLiteDatabase,
     private readonly trips: TripRepository,
+    private readonly onWrite?: () => void,
   ) {}
 
   async listByMonth(year: number, month: number): Promise<TransactionWithCategory[]> {
@@ -203,6 +204,7 @@ export class TransactionRepository {
     } else {
       await this.db.withTransactionAsync(body);
     }
+    this.onWrite?.();
   }
 
   async update(
@@ -267,6 +269,7 @@ export class TransactionRepository {
       if (next.trip_id) toRecompute.add(next.trip_id);
       await recomputeTrips(this.trips, [...toRecompute]);
     });
+    this.onWrite?.();
   }
 
   async delete(id: string): Promise<void> {
@@ -280,6 +283,7 @@ export class TransactionRepository {
         await this.trips.recomputeTripSummary(current.trip_id);
       }
     });
+    this.onWrite?.();
   }
 
   async deleteAll(): Promise<void> {

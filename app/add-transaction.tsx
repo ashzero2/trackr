@@ -26,6 +26,7 @@ import { useFormatMoney } from '@/hooks/use-format-money';
 import { lightImpact } from '@/lib/haptics';
 import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
 import { formatPaymentMethodLabel } from '@/lib/payment-method';
+import { CurrencyPickerField } from '@/components/currency-picker-field';
 
 const PAYMENTS: PaymentMethod[] = ['CARD', 'CASH', 'ACH', 'OTHER'];
 
@@ -56,6 +57,10 @@ export default function AddTransactionScreen() {
   const [tripPickerOpen, setTripPickerOpen] = useState(false);
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
   const [newTripName, setNewTripName] = useState('');
+
+  // Exchange rate fields — used when the transaction currency differs from the profile base currency
+  const [txnCurrencyCode, setTxnCurrencyCode] = useState(profileCurrency);
+  const [exchangeRateText, setExchangeRateText] = useState('1');
 
   useEffect(() => {
     let alive = true;
@@ -118,6 +123,12 @@ export default function AddTransactionScreen() {
       // For duplicate: use today's date instead of the original
       setOccurredAt(duplicateId ? new Date() : new Date(row.occurredAt));
       setSelectedTripId(row.tripId);
+      setTxnCurrencyCode(row.currencyCode ?? profileCurrency);
+      setExchangeRateText(
+        row.exchangeRateToBase != null && row.exchangeRateToBase !== 1
+          ? String(row.exchangeRateToBase)
+          : '1',
+      );
     }
     setLoading(false);
   }, [editId, duplicateId, transactions]);
@@ -131,6 +142,20 @@ export default function AddTransactionScreen() {
       title: editId ? 'Edit transaction' : duplicateId ? 'Duplicate transaction' : 'Add transaction',
     });
   }, [navigation, editId, duplicateId]);
+
+  const isForeignCurrency = useMemo(
+    () => txnCurrencyCode !== profileCurrency,
+    [txnCurrencyCode, profileCurrency],
+  );
+
+  /** Live converted amount in base currency — null when inputs are invalid or same currency. */
+  const liveConvertedCents = useMemo(() => {
+    if (!isForeignCurrency) return null;
+    const amount = Number.parseFloat(amountText.replace(/,/g, ''));
+    const rate = Number.parseFloat(exchangeRateText);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(rate) || rate <= 0) return null;
+    return Math.round(amount * 100 * rate);
+  }, [isForeignCurrency, amountText, exchangeRateText]);
 
   const selectedCategory = categoryId ? catList.find((c) => c.id === categoryId) ?? null : null;
 
@@ -198,7 +223,9 @@ export default function AddTransactionScreen() {
   };
 
   const persistTxn = async (cents: number, iso: string, tripId: string | null, catId: string) => {
-    const cur = profileCurrency;
+    const cur = txnCurrencyCode;
+    const rate = isForeignCurrency ? Number.parseFloat(exchangeRateText) : 1;
+    const baseCents = isForeignCurrency ? Math.round(cents * rate) : cents;
     if (editId) {
       await transactions.update(editId, {
         amountCents: cents,
@@ -209,8 +236,8 @@ export default function AddTransactionScreen() {
         paymentMethod,
         tripId,
         currencyCode: cur,
-        amountBaseCents: cents,
-        exchangeRateToBase: 1,
+        amountBaseCents: baseCents,
+        exchangeRateToBase: rate,
       });
     } else {
       await transactions.insert({
@@ -223,8 +250,8 @@ export default function AddTransactionScreen() {
         paymentMethod,
         tripId,
         currencyCode: cur,
-        amountBaseCents: cents,
-        exchangeRateToBase: 1,
+        amountBaseCents: baseCents,
+        exchangeRateToBase: rate,
       });
     }
     lightImpact();
@@ -241,6 +268,13 @@ export default function AddTransactionScreen() {
     if (!categoryId) {
       setError('Choose a category.');
       return;
+    }
+    if (isForeignCurrency) {
+      const rate = Number.parseFloat(exchangeRateText);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        setError('Enter a valid exchange rate greater than zero.');
+        return;
+      }
     }
     const catId = categoryId;
     const cents = Math.round(parsed * 100);
@@ -330,7 +364,7 @@ export default function AddTransactionScreen() {
         </View>
 
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-          Amount ({currencyCode})
+          Amount ({txnCurrencyCode})
         </Text>
         <TextInput
           value={amountText}
@@ -348,6 +382,49 @@ export default function AddTransactionScreen() {
             },
           ]}
         />
+
+        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Currency</Text>
+        <CurrencyPickerField
+          value={txnCurrencyCode}
+          onChange={(code) => {
+            setTxnCurrencyCode(code);
+            // Reset rate when switching back to base currency
+            if (code === profileCurrency) setExchangeRateText('1');
+          }}
+          colors={colors}
+        />
+
+        {isForeignCurrency ? (
+          <>
+            <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+              Exchange rate
+            </Text>
+            <TextInput
+              value={exchangeRateText}
+              onChangeText={setExchangeRateText}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 83.50"
+              placeholderTextColor={colors.onSurfaceVariant}
+              style={[
+                styles.input,
+                {
+                  color: colors.onSurface,
+                  backgroundColor: colors.surfaceContainerLowest,
+                  fontFamily: bodyFont,
+                },
+              ]}
+            />
+            <Text
+              style={[styles.rateHelper, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+              1 {txnCurrencyCode} = {exchangeRateText.trim() || '?'} {profileCurrency}
+            </Text>
+            {liveConvertedCents !== null ? (
+              <Text style={[styles.ratePreview, { color: colors.primary, fontFamily: bodyFont }]}>
+                ≈ {format(liveConvertedCents)} {profileCurrency}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
 
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Category</Text>
         <Pressable
@@ -737,5 +814,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  rateHelper: {
+    fontSize: 12,
+    marginTop: 6,
+    marginLeft: 4,
+  },
+  ratePreview: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+    marginLeft: 4,
   },
 });

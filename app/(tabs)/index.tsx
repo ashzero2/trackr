@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
@@ -25,7 +25,8 @@ function utcYearMonth(): { y: number; m: number } {
 export default function DashboardScreen() {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
-  const { ready, error, transactions, budgets } = useDatabase();
+  const { ready, error, transactions, budgets, dataVersion } = useDatabase();
+  const lastSeenVersion = useRef(-1);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [prevSummary, setPrevSummary] = useState<MonthSummary | null>(null);
   const [recent, setRecent] = useState<TransactionWithCategory[]>([]);
@@ -53,9 +54,13 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       if (ready && transactions && budgets) {
-        load();
+        // Only re-query SQLite when data has actually changed since last render
+        if (dataVersion !== lastSeenVersion.current) {
+          lastSeenVersion.current = dataVersion;
+          load();
+        }
       }
-    }, [ready, transactions, budgets, load]),
+    }, [ready, transactions, budgets, load, dataVersion]),
   );
 
   const onDelete = useCallback(

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
 
@@ -27,8 +28,8 @@ function buildPolylinePoints(values: number[], w: number, h: number): string {
     .join(' ');
 }
 
-/** SVG implementation (web fallback and parity reference). */
-export function SpendingTrendChartSvg({
+/** SVG implementation — memoised so it only re-renders when values or labels change by value. */
+function SpendingTrendChartSvgBase({
   values,
   labels,
   height = 120,
@@ -89,6 +90,23 @@ export function SpendingTrendChartSvg({
     </View>
   );
 }
+
+function arePropsEqual(prev: SpendingTrendChartProps, next: SpendingTrendChartProps): boolean {
+  if (prev.height !== next.height) return false;
+  if (prev.subtitle !== next.subtitle) return false;
+  if (prev.peakLabel !== next.peakLabel) return false;
+  if (prev.values.length !== next.values.length) return false;
+  if (prev.labels.length !== next.labels.length) return false;
+  for (let i = 0; i < prev.values.length; i++) {
+    if (prev.values[i] !== next.values[i]) return false;
+  }
+  for (let i = 0; i < prev.labels.length; i++) {
+    if (prev.labels[i] !== next.labels[i]) return false;
+  }
+  return true;
+}
+
+export const SpendingTrendChartSvg = memo(SpendingTrendChartSvgBase, arePropsEqual);
 
 const styles = StyleSheet.create({
   wrap: {
