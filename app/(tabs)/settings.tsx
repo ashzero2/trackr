@@ -21,6 +21,7 @@ import { THEME_METADATA, THEME_NAMES } from '@/constants/design-tokens';
 
 import { CurrencyPickerField } from '@/components/currency-picker-field';
 import { ScreenScaffold } from '@/components/screen-scaffold';
+import { useAppLock } from '@/contexts/app-lock-context';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
@@ -45,6 +46,14 @@ export default function SettingsScreen() {
   const { colors, scheme, setThemePreference } = useAppColors();
   const { displayName, currencyCode, setProfile, travelModeEnabled, activeTripId } = useUserProfile();
   const { ready, error, db, categories, transactions, trips } = useDatabase();
+  const {
+    isEnabled: lockEnabled,
+    biometricsEnabled,
+    hasBiometrics,
+    biometricsEnrolled,
+    setBiometricsEnabled,
+    lock,
+  } = useAppLock();
   const [busy, setBusy] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -277,6 +286,53 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Section title="Security">
+        <Card divided>
+          <PressableRow
+            icon={lockEnabled ? 'lock' : 'lock-open'}
+            title="App Lock"
+            subtitle={lockEnabled ? 'PIN protection is active' : 'Disabled — anyone can open the app'}
+            onPress={() =>
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              router.push(`/setup-app-lock?mode=${lockEnabled ? 'disable' : 'enable'}` as any)
+            }
+          />
+          {lockEnabled ? (
+            <>
+              <PressableRow
+                icon="password"
+                title="Change PIN"
+                subtitle="Replace your current 6-digit PIN"
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onPress={() => router.push('/setup-app-lock?mode=change' as any)}
+              />
+              {hasBiometrics && biometricsEnrolled ? (
+                <Row
+                  icon="fingerprint"
+                  iconBg={colors.surfaceContainerLowest}
+                  title="Biometric unlock"
+                  subtitle="Use Face ID or fingerprint instead of PIN"
+                  right={
+                    <Switch
+                      value={biometricsEnabled}
+                      onValueChange={(v) => void setBiometricsEnabled(v)}
+                      trackColor={{ false: colors.outlineVariant, true: colors.primaryContainer }}
+                      thumbColor={biometricsEnabled ? colors.primary : colors.surfaceContainerLowest}
+                    />
+                  }
+                />
+              ) : null}
+              <PressableRow
+                icon="exit-to-app"
+                title="Lock now"
+                subtitle="Immediately lock the app"
+                onPress={lock}
+              />
+            </>
+          ) : null}
+        </Card>
+      </Section>
 
       <Section title="Travel">
         <Card divided>

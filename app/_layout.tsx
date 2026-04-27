@@ -1,11 +1,13 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { AppLockScreen } from '@/components/app-lock-screen';
 import { NavigationThemeRoot } from '@/components/navigation-theme-root';
+import { AppLockProvider, useAppLock } from '@/contexts/app-lock-context';
 import { ColorSchemeProvider } from '@/contexts/color-scheme-context';
 import { DatabaseProvider, useDatabase } from '@/contexts/database-context';
 import { UserProfileProvider } from '@/contexts/user-profile-context';
@@ -75,6 +77,18 @@ function RecurrenceAppStateListener() {
   return null;
 }
 
+/**
+ * Renders the full-screen lock overlay when the app is locked.
+ * Must be inside AppLockProvider, ColorSchemeProvider, and UserProfileProvider.
+ */
+function AppLockGate({ children }: { children: React.ReactNode }) {
+  const { isLocked, ready } = useAppLock();
+  // While the lock context is loading, render nothing (splash screen is still showing)
+  if (!ready) return null;
+  if (isLocked) return <AppLockScreen />;
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
 
@@ -92,32 +106,37 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
     <ColorSchemeProvider>
       <UserProfileProvider>
-        <DatabaseProvider>
-          <NotificationPermissionRequester />
-          <BudgetAlertWatcher />
-          <RecurrenceAppStateListener />
-          <NavigationThemeRoot>
-            <Stack initialRouteName="index">
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="add-transaction"
-                options={{ presentation: 'modal', title: 'Add transaction' }}
-              />
-              <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
-              <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
-              <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
-              <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
-              <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false }} />
-              <Stack.Screen
-                name="add-recurring"
-                options={{ presentation: 'modal', title: 'New recurring rule' }}
-              />
-              <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
-            </Stack>
-          </NavigationThemeRoot>
-        </DatabaseProvider>
+        <AppLockProvider>
+          <AppLockGate>
+            <DatabaseProvider>
+              <NotificationPermissionRequester />
+              <BudgetAlertWatcher />
+              <RecurrenceAppStateListener />
+              <NavigationThemeRoot>
+                <Stack initialRouteName="index">
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="add-transaction"
+                    options={{ presentation: 'modal', title: 'Add transaction' }}
+                  />
+                  <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
+                  <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
+                  <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
+                  <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
+                  <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false }} />
+                  <Stack.Screen
+                    name="add-recurring"
+                    options={{ presentation: 'modal', title: 'New recurring rule' }}
+                  />
+                  <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
+                  <Stack.Screen name="setup-app-lock" options={{ title: 'App Lock', headerShown: true }} />
+                </Stack>
+              </NavigationThemeRoot>
+            </DatabaseProvider>
+          </AppLockGate>
+        </AppLockProvider>
       </UserProfileProvider>
     </ColorSchemeProvider>
     </GestureHandlerRootView>
