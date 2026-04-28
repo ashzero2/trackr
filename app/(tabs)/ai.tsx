@@ -9,6 +9,7 @@ import {
   Keyboard,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -142,11 +143,19 @@ export default function AiScreen() {
     };
   }, []);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   const refreshKey = useCallback(async () => {
     const [k, m] = await Promise.all([getGeminiApiKey(), getGeminiModelId()]);
     setApiKey(k?.trim() ? k : null);
     setModelId(m);
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshKey();
+    setRefreshing(false);
+  }, [refreshKey]);
 
   useFocusEffect(
     useCallback(() => {
@@ -412,6 +421,9 @@ export default function AiScreen() {
           keyExtractor={(item) => item.id}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPad }]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />
+          }
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={[styles.emptyTitle, { color: colors.primary, fontFamily: headlineFont }]}>{EXBOT_NAME}</Text>
