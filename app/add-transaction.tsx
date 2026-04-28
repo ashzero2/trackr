@@ -1,43 +1,45 @@
 import * as Crypto from 'expo-crypto';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  ActivityIndicator, Alert, Keyboard, Modal, Platform,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
-import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
+import { bodyFont, displayFont, headlineFont, labelFont } from '@/constants/typography';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useRepositories } from '@/contexts/database-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { lightImpact } from '@/lib/haptics';
-import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
-import { formatPaymentMethodLabel } from '@/lib/payment-method';
+import { materialIconNameForCategory } from '@/lib/category-icons';
 import { CurrencyPickerField } from '@/components/currency-picker-field';
+import { NumberPad } from '@/components/number-pad';
+import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
 
-const PAYMENTS: PaymentMethod[] = ['CARD', 'CASH', 'ACH', 'OTHER'];
+const EXPENSE_COLOR = '#F06B6B';
+const INCOME_COLOR = '#4CD964';
+
+function getCurrencySymbol(code: string): string {
+  try {
+    const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).formatToParts(0);
+    return parts.find((p) => p.type === 'currency')?.value ?? code;
+  } catch { return code; }
+}
 
 export default function AddTransactionScreen() {
   const { id: editId, duplicate: duplicateId } = useLocalSearchParams<{ id?: string; duplicate?: string }>();
   const router = useRouter();
-  const navigation = useNavigation();
+  const nav = useNavigation();
   const { colors } = useAppColors();
-  const { currencyCode } = useFormatMoney();
+  const { format } = useFormatMoney();
   const { travelModeEnabled, activeTripId, currencyCode: profileCurrency, setProfile } = useUserProfile();
   const { transactions, categories, trips } = useRepositories();
+  const insets = useSafeAreaInsets();
+  const noteRef = useRef<TextInput>(null);
 
   const [loading, setLoading] = useState(!!(editId || duplicateId));
   const [type, setType] = useState<EntryType>('expense');
@@ -46,784 +48,372 @@ export default function AddTransactionScreen() {
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CARD');
   const [occurredAt, setOccurredAt] = useState(new Date());
-  const [showDate, setShowDate] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [showDate, setShowDate] = useState(false);
+  const [showFxModal, setShowFxModal] = useState(false);
   const [catList, setCatList] = useState<Category[]>([]);
   const [tripList, setTripList] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [tripPickerOpen, setTripPickerOpen] = useState(false);
   const [newTripModalOpen, setNewTripModalOpen] = useState(false);
   const [newTripName, setNewTripName] = useState('');
-
-  // Exchange rate fields — used when the transaction currency differs from the profile base currency
   const [txnCurrencyCode, setTxnCurrencyCode] = useState(profileCurrency);
   const [exchangeRateText, setExchangeRateText] = useState('1');
 
-  useEffect(() => {
-    let alive = true;
-    categories.listByType(type).then((c) => {
-      if (alive) setCatList(c);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [categories, type]);
+  const accentColor = type === 'expense' ? EXPENSE_COLOR : INCOME_COLOR;
+  const sym = useMemo(() => getCurrencySymbol(txnCurrencyCode), [txnCurrencyCode]);
+  const isFx = txnCurrencyCode !== profileCurrency;
 
-  useEffect(() => {
-    let alive = true;
-    trips.listForTransactionPicker().then((list) => {
-      if (alive) setTripList(list);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [trips]);
+  // ── Number pad (dismiss keyboard on tap) ──
+  const onDigit = useCallback((d: string) => {
+    Keyboard.dismiss();
+    setAmountText(p => { if (p === '0' && d !== '.') return d; const dot = p.indexOf('.'); if (dot !== -1 && p.length - dot > 2) return p; if (p.length >= 12) return p; return p + d; });
+  }, []);
+  const onDecimal = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.includes('.') ? p : (p.length === 0 ? '0.' : p + '.')); }, []);
+  const onBackspace = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.slice(0, -1)); }, []);
 
+  // ── Data loading ──
+  useEffect(() => { let a = true; categories.listByType(type).then(c => { if (a) setCatList(c); }); return () => { a = false; }; }, [categories, type]);
+  useEffect(() => { let a = true; trips.listForTransactionPicker().then(l => { if (a) setTripList(l); }); return () => { a = false; }; }, [trips]);
   useEffect(() => {
     if (editId || duplicateId) return;
-    if (!travelModeEnabled) {
-      setSelectedTripId(null);
-      return;
-    }
-    let alive = true;
-    (async () => {
-      if (!activeTripId) {
-        if (alive) setSelectedTripId(null);
-        return;
-      }
-      const t = await trips.getById(activeTripId);
-      if (!alive) return;
-      if (t?.status === 'ACTIVE') {
-        setSelectedTripId(activeTripId);
-      } else {
-        setSelectedTripId(null);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+    if (!travelModeEnabled) { setSelectedTripId(null); return; }
+    let a = true;
+    (async () => { if (!activeTripId) { if (a) setSelectedTripId(null); return; } const t = await trips.getById(activeTripId); if (!a) return; if (t?.status === 'ACTIVE') setSelectedTripId(activeTripId); else setSelectedTripId(null); })();
+    return () => { a = false; };
   }, [editId, duplicateId, travelModeEnabled, activeTripId, trips]);
 
   const load = useCallback(async () => {
-    const sourceId = editId ?? duplicateId;
-    if (!sourceId) {
-      setLoading(false);
-      return;
-    }
-    const row = await transactions.getById(sourceId);
+    const sid = editId ?? duplicateId; if (!sid) { setLoading(false); return; }
+    const row = await transactions.getById(sid);
     if (row) {
       setType(row.type);
       setAmountText((row.amountCents / 100).toFixed(2));
       setCategoryId(row.categoryId);
       setNote(row.note ?? '');
-      setPaymentMethod(row.paymentMethod);
-      // For duplicate: use today's date instead of the original
+      // Map legacy payment methods to CARD
+      const pm = row.paymentMethod;
+      setPaymentMethod(pm === 'CASH' ? 'CASH' : 'CARD');
       setOccurredAt(duplicateId ? new Date() : new Date(row.occurredAt));
       setSelectedTripId(row.tripId);
       setTxnCurrencyCode(row.currencyCode ?? profileCurrency);
-      setExchangeRateText(
-        row.exchangeRateToBase != null && row.exchangeRateToBase !== 1
-          ? String(row.exchangeRateToBase)
-          : '1',
-      );
+      setExchangeRateText(row.exchangeRateToBase != null && row.exchangeRateToBase !== 1 ? String(row.exchangeRateToBase) : '1');
+      if (row.currencyCode && row.currencyCode !== profileCurrency) setShowFxModal(false);
     }
     setLoading(false);
-  }, [editId, duplicateId, transactions]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  }, [editId, duplicateId, transactions, profileCurrency]);
+  useEffect(() => { load(); }, [load]);
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      title: editId ? 'Edit transaction' : duplicateId ? 'Duplicate transaction' : 'Add transaction',
+    nav.setOptions({
+      headerShown: false,
     });
-  }, [navigation, editId, duplicateId]);
+  }, [nav]);
 
-  const isForeignCurrency = useMemo(
-    () => txnCurrencyCode !== profileCurrency,
-    [txnCurrencyCode, profileCurrency],
-  );
+  // ── Derived ──
+  const convertedCents = useMemo(() => { if (!isFx) return null; const a = parseFloat(amountText.replace(/,/g, '')); const r = parseFloat(exchangeRateText); if (!isFinite(a) || a <= 0 || !isFinite(r) || r <= 0) return null; return Math.round(a * 100 * r); }, [isFx, amountText, exchangeRateText]);
+  const isToday = useMemo(() => { const n = new Date(); return occurredAt.getDate() === n.getDate() && occurredAt.getMonth() === n.getMonth() && occurredAt.getFullYear() === n.getFullYear(); }, [occurredAt]);
+  const dateLabel = isToday ? 'Today' : occurredAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const tripLabel = useMemo(() => { if (!selectedTripId) return 'No trip'; return tripList.find(x => x.id === selectedTripId)?.name ?? 'Trip'; }, [selectedTripId, tripList]);
 
-  /** Live converted amount in base currency — null when inputs are invalid or same currency. */
-  const liveConvertedCents = useMemo(() => {
-    if (!isForeignCurrency) return null;
-    const amount = Number.parseFloat(amountText.replace(/,/g, ''));
-    const rate = Number.parseFloat(exchangeRateText);
-    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(rate) || rate <= 0) return null;
-    return Math.round(amount * 100 * rate);
-  }, [isForeignCurrency, amountText, exchangeRateText]);
-
-  const selectedCategory = categoryId ? catList.find((c) => c.id === categoryId) ?? null : null;
-
-  const selectedTripLabel = useMemo(() => {
-    if (!selectedTripId) return 'None — everyday spending';
-    const t = tripList.find((x) => x.id === selectedTripId);
-    if (t) return `${t.name} (${t.status})`;
-    return 'Trip selected';
-  }, [selectedTripId, tripList]);
-
-  const tripPickerRows = useMemo(() => {
-    const rows: ({ rowKey: string; kind: 'none' } | { rowKey: string; kind: 'new' } | { rowKey: string; kind: 'trip'; trip: Trip })[] = [
-      { rowKey: 'none', kind: 'none' },
-    ];
-    for (const t of tripList) rows.push({ rowKey: t.id, kind: 'trip', trip: t });
-    rows.push({ rowKey: 'new', kind: 'new' });
-    return rows;
-  }, [tripList]);
-
-  async function confirmIfFinishedTrip(tripId: string | null): Promise<boolean> {
-    if (!tripId) return true;
-    const tr = await trips.getById(tripId);
-    if (!tr || (tr.status !== 'COMPLETED' && tr.status !== 'ARCHIVED')) return true;
-    return new Promise((resolve) => {
-      Alert.alert(
-        'Attach to finished trip?',
-        'This trip is no longer active. Continue and link this transaction to it?',
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Continue', onPress: () => resolve(true) },
-        ],
-      );
-    });
-  }
-
-  const onCreateQuickTrip = async () => {
-    const n = newTripName.trim();
-    if (!n) {
-      Alert.alert('Name required', 'Enter a short name for this trip.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const id = await Crypto.randomUUID();
-      const iso = new Date().toISOString();
-      await trips.insert({
-        id,
-        name: n,
-        startAt: iso,
-        endAt: null,
-        status: 'ACTIVE',
-        metadata: null,
-      });
-      await setProfile({ activeTripId: id, travelModeEnabled: true });
-      const list = await trips.listForTransactionPicker();
-      setTripList(list);
-      setSelectedTripId(id);
-      setNewTripModalOpen(false);
-      setNewTripName('');
-    } catch (e) {
-      Alert.alert('Could not create trip', e instanceof Error ? e.message : 'Unknown error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const persistTxn = async (cents: number, iso: string, tripId: string | null, catId: string) => {
-    const cur = txnCurrencyCode;
-    const rate = isForeignCurrency ? Number.parseFloat(exchangeRateText) : 1;
-    const baseCents = isForeignCurrency ? Math.round(cents * rate) : cents;
-    if (editId) {
-      await transactions.update(editId, {
-        amountCents: cents,
-        type,
-        categoryId: catId,
-        occurredAt: iso,
-        note: note.trim() || null,
-        paymentMethod,
-        tripId,
-        currencyCode: cur,
-        amountBaseCents: baseCents,
-        exchangeRateToBase: rate,
-      });
-    } else {
-      await transactions.insert({
-        id: await Crypto.randomUUID(),
-        amountCents: cents,
-        type,
-        categoryId: catId,
-        occurredAt: iso,
-        note: note.trim() || null,
-        paymentMethod,
-        tripId,
-        currencyCode: cur,
-        amountBaseCents: baseCents,
-        exchangeRateToBase: rate,
-      });
-    }
-    lightImpact();
-    router.back();
-  };
+  // ── Actions ──
+  async function confirmTrip(id: string | null): Promise<boolean> { if (!id) return true; const t = await trips.getById(id); if (!t || (t.status !== 'COMPLETED' && t.status !== 'ARCHIVED')) return true; return new Promise(r => Alert.alert('Finished trip?', 'Continue?', [{ text: 'Cancel', style: 'cancel', onPress: () => r(false) }, { text: 'OK', onPress: () => r(true) }])); }
 
   const onSave = async () => {
     setError(null);
-    const parsed = Number.parseFloat(amountText.replace(/,/g, ''));
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError('Enter a valid amount greater than zero.');
-      return;
-    }
-    if (!categoryId) {
-      setError('Choose a category.');
-      return;
-    }
-    if (isForeignCurrency) {
-      const rate = Number.parseFloat(exchangeRateText);
-      if (!Number.isFinite(rate) || rate <= 0) {
-        setError('Enter a valid exchange rate greater than zero.');
-        return;
-      }
-    }
-    const catId = categoryId;
-    const cents = Math.round(parsed * 100);
-    const iso = occurredAt.toISOString();
-    const tripId = selectedTripId;
-    const okTrip = await confirmIfFinishedTrip(tripId);
-    if (!okTrip) return;
-
+    const parsed = parseFloat(amountText.replace(/,/g, ''));
+    if (!isFinite(parsed) || parsed <= 0) { setError('Enter a valid amount.'); return; }
+    if (!categoryId) { setError('Choose a category.'); return; }
+    if (isFx) { const r = parseFloat(exchangeRateText); if (!isFinite(r) || r <= 0) { setError('Enter a valid rate.'); return; } }
+    if (!(await confirmTrip(selectedTripId))) return;
     setSaving(true);
     try {
-      await persistTxn(cents, iso, tripId, catId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save.');
-    } finally {
-      setSaving(false);
-    }
+      const cents = Math.round(parsed * 100); const iso = occurredAt.toISOString();
+      const rate = isFx ? parseFloat(exchangeRateText) : 1;
+      const payload = { amountCents: cents, type, categoryId, occurredAt: iso, note: note.trim() || null, paymentMethod, tripId: selectedTripId, currencyCode: txnCurrencyCode, amountBaseCents: isFx ? Math.round(cents * rate) : cents, exchangeRateToBase: rate };
+      if (editId) await transactions.update(editId, payload);
+      else await transactions.insert({ id: await Crypto.randomUUID(), ...payload });
+      lightImpact(); router.back();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not save.'); }
+    finally { setSaving(false); }
   };
 
-  const onDelete = () => {
-    if (!editId) return;
-    Alert.alert('Delete transaction?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          setSaving(true);
-          try {
-            await transactions.delete(editId);
-            lightImpact();
-            router.back();
-          } catch (e) {
-            setError(e instanceof Error ? e.message : 'Could not delete.');
-          } finally {
-            setSaving(false);
-          }
-        },
-      },
-    ]);
+  const onDelete = () => { if (!editId) return; Alert.alert('Delete?', 'Cannot undo.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { setSaving(true); try { await transactions.delete(editId); lightImpact(); router.back(); } catch (e) { setError(e instanceof Error ? e.message : 'Error'); } finally { setSaving(false); } } }]); };
+
+  const onCreateTrip = async () => {
+    const n = newTripName.trim();
+    if (!n) { Alert.alert('Name required'); return; }
+    setSaving(true);
+    try {
+      const id = await Crypto.randomUUID();
+      await trips.insert({ id, name: n, startAt: new Date().toISOString(), endAt: null, status: 'ACTIVE', metadata: null });
+      await setProfile({ activeTripId: id, travelModeEnabled: true });
+      const list = await trips.listForTransactionPicker();
+      setTripList(list); setSelectedTripId(id); setNewTripModalOpen(false); setNewTripName('');
+    } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'Unknown'); }
+    finally { setSaving(false); }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.surface }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  if (loading) return <View style={[s.root, s.center, { backgroundColor: colors.surface }]}><ActivityIndicator size="large" color={accentColor} /></View>;
 
+  // ══════════════════ RENDER ══════════════════
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, { backgroundColor: colors.surface }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        {error ? (
-          <Text style={[styles.error, { color: colors.error, fontFamily: bodyFont }]}>{error}</Text>
-        ) : null}
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      {/* ── Custom Header ── */}
+      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => router.back()} style={s.headerBtn} hitSlop={8}>
+          <MaterialIcons name="chevron-left" size={28} color={colors.onSurface} />
+        </Pressable>
+        <Text style={[s.headerTitle, { color: colors.onSurface, fontFamily: headlineFont }]}>
+          {editId ? 'Edit Transaction' : 'Add Transaction'}
+        </Text>
+        <Pressable onPress={() => router.back()} style={s.headerBtn} hitSlop={8}>
+          <MaterialIcons name="close" size={24} color={colors.onSurface} />
+        </Pressable>
+      </View>
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Type</Text>
-        <View style={[styles.segment, { backgroundColor: colors.surfaceContainerHighest }]}>
-          {(['expense', 'income'] as const).map((t) => (
-            <Pressable
-              key={t}
-              accessibilityRole="button"
-              accessibilityState={{ selected: type === t }}
-              accessibilityLabel={t === 'expense' ? 'Expense' : 'Income'}
-              onPress={() => {
-                setType(t);
-                setCategoryId(null);
-              }}
-              style={[styles.segBtn, type === t && { backgroundColor: colors.primary }]}>
-              <Text
-                style={[
-                  styles.segText,
-                  {
-                    color: type === t ? colors.onPrimary : colors.onSurface,
-                    fontFamily: labelFont,
-                  },
-                ]}>
+      {/* ── Type toggle (segmented control) ── */}
+      <View style={[s.typeRow, { backgroundColor: colors.surfaceContainerHigh }]}>
+        {(['expense', 'income'] as const).map(t => {
+          const isActive = type === t;
+          const bg = isActive ? (t === 'expense' ? EXPENSE_COLOR : INCOME_COLOR) : 'transparent';
+          return (
+            <Pressable key={t} onPress={() => { setType(t); setCategoryId(null); }}
+              style={[s.typeChip, { backgroundColor: bg }]}>
+              <Text style={[s.typeChipText, { color: isActive ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]}>
                 {t === 'expense' ? 'Expense' : 'Income'}
               </Text>
             </Pressable>
-          ))}
-        </View>
+          );
+        })}
+      </View>
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-          Amount ({txnCurrencyCode})
-        </Text>
-        <TextInput
-          value={amountText}
-          onChangeText={setAmountText}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          placeholderTextColor={colors.onSurfaceVariant}
-          autoFocus={!editId}
-          style={[
-            styles.input,
-            {
-              color: colors.onSurface,
-              backgroundColor: colors.surfaceContainerLowest,
-              fontFamily: bodyFont,
-            },
-          ]}
-        />
+      {/* ── Flex spacer above amount ── */}
+      <View style={s.spacer} />
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Currency</Text>
-        <CurrencyPickerField
-          value={txnCurrencyCode}
-          onChange={(code) => {
-            setTxnCurrencyCode(code);
-            // Reset rate when switching back to base currency
-            if (code === profileCurrency) setExchangeRateText('1');
-          }}
-          colors={colors}
-        />
-
-        {isForeignCurrency ? (
-          <>
-            <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-              Exchange rate
-            </Text>
-            <TextInput
-              value={exchangeRateText}
-              onChangeText={setExchangeRateText}
-              keyboardType="decimal-pad"
-              placeholder="e.g. 83.50"
-              placeholderTextColor={colors.onSurfaceVariant}
-              style={[
-                styles.input,
-                {
-                  color: colors.onSurface,
-                  backgroundColor: colors.surfaceContainerLowest,
-                  fontFamily: bodyFont,
-                },
-              ]}
-            />
-            <Text
-              style={[styles.rateHelper, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-              1 {txnCurrencyCode} = {exchangeRateText.trim() || '?'} {profileCurrency}
-            </Text>
-            {liveConvertedCents !== null ? (
-              <Text style={[styles.ratePreview, { color: colors.primary, fontFamily: bodyFont }]}>
-                ≈ {format(liveConvertedCents)} {profileCurrency}
-              </Text>
-            ) : null}
-          </>
-        ) : null}
-
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Category</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={selectedCategory ? `Category ${selectedCategory.name}` : 'Select category'}
-          accessibilityHint="Opens a list of categories"
-          onPress={() => setPickerOpen(true)}
-          style={[
-            styles.input,
-            styles.pickerTrigger,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}>
-          <Text style={{ color: selectedCategory ? colors.onSurface : colors.onSurfaceVariant, fontFamily: bodyFont }}>
-            {selectedCategory?.name ?? 'Select category'}
+      {/* ── Amount display (centered in available space) ── */}
+      <View style={s.amountSection}>
+        {error ? <Text style={[s.errorText, { color: colors.error, fontFamily: bodyFont }]}>{error}</Text> : null}
+        <View style={s.amountRow}>
+          <Text style={[s.amountSymbol, { color: colors.onSurfaceVariant, fontFamily: displayFont }]}>{sym}</Text>
+          <Text style={[s.amountText, { color: amountText ? colors.onSurface : colors.onSurfaceVariant, fontFamily: displayFont }]}>
+            {amountText || '0'}
           </Text>
-        </Pressable>
+          <View style={[s.amountCursor, { backgroundColor: accentColor }]} />
+        </View>
+        {isFx && convertedCents != null ? <Text style={[s.fxText, { color: accentColor, fontFamily: bodyFont }]}>≈ {format(convertedCents)} {profileCurrency}</Text> : null}
+      </View>
 
-        {travelModeEnabled ? (
-          <>
-            <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Trip</Text>
-            <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12, marginTop: 4 }}>
-              Only ACTIVE trips auto-fill. You can override for each transaction.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Trip ${selectedTripLabel}`}
-              onPress={() => setTripPickerOpen(true)}
-              style={[
-                styles.input,
-                styles.pickerTrigger,
-                { backgroundColor: colors.surfaceContainerLowest },
-              ]}>
-              <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>{selectedTripLabel}</Text>
+      {/* ── Flex spacer below amount ── */}
+      <View style={s.spacer} />
+
+      {/* ── Categories: single-row horizontal scroll ── */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScrollContent} style={s.catScroll}>
+        {catList.map(item => {
+          const sel = item.id === categoryId;
+          return (
+            <Pressable key={item.id} onPress={() => setCategoryId(item.id)}
+              style={[s.catChip, { backgroundColor: sel ? accentColor : colors.surfaceContainerHigh }]}>
+              <MaterialIcons name={materialIconNameForCategory(item.iconKey)} size={16} color={sel ? '#FFFFFF' : colors.onSurfaceVariant} />
+              <Text style={[s.catLabel, { color: sel ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]} numberOfLines={1}>{item.name}</Text>
             </Pressable>
-          </>
-        ) : null}
+          );
+        })}
+      </ScrollView>
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Merchant / note</Text>
+      {/* ── Note input (inline) ── */}
+      <View style={[s.noteRow, { backgroundColor: colors.surfaceContainerHigh }]}>
+        <MaterialIcons name="format-list-bulleted" size={18} color={colors.onSurfaceVariant} />
         <TextInput
+          ref={noteRef}
           value={note}
           onChangeText={setNote}
-          placeholder="Optional description"
+          placeholder="Add a note..."
           placeholderTextColor={colors.onSurfaceVariant}
-          style={[
-            styles.input,
-            {
-              color: colors.onSurface,
-              backgroundColor: colors.surfaceContainerLowest,
-              fontFamily: bodyFont,
-            },
-          ]}
+          style={[s.noteInput, { color: colors.onSurface, fontFamily: bodyFont }]}
+          returnKeyType="done"
+          onSubmitEditing={() => Keyboard.dismiss()}
         />
+      </View>
 
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Date</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Transaction date ${occurredAt.toLocaleDateString()}`}
-          accessibilityHint="Change the transaction date"
-          onPress={() => setShowDate(true)}
-          style={[
-            styles.input,
-            styles.pickerTrigger,
-            { backgroundColor: colors.surfaceContainerLowest },
-          ]}>
-          <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>
-            {occurredAt.toLocaleDateString(undefined, {
-              weekday: 'short',
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </Text>
+      {/* ── Date + Payment method row ── */}
+      <View style={s.metaRow}>
+        <Pressable onPress={() => setShowDate(true)} style={[s.metaChip, { backgroundColor: colors.surfaceContainerHigh }]}>
+          <MaterialIcons name="event" size={16} color={colors.onSurfaceVariant} />
+          <Text style={[s.metaChipText, { color: colors.onSurface, fontFamily: labelFont }]}>{dateLabel}</Text>
         </Pressable>
 
-        {showDate && Platform.OS === 'android' ? (
-          <DateTimePicker
-            value={occurredAt}
-            mode="date"
-            display="default"
-            onChange={(_, d) => {
-              setShowDate(false);
-              if (d) setOccurredAt(d);
-            }}
-          />
-        ) : null}
-        {showDate && Platform.OS === 'ios' ? (
-          <View style={styles.iosDateWrap}>
-            <DateTimePicker
-              value={occurredAt}
-              mode="date"
-              display="spinner"
-              onChange={(_, d) => {
-                if (d) setOccurredAt(d);
-              }}
-            />
-            <Pressable
-              onPress={() => setShowDate(false)}
-              style={[styles.iosDone, { backgroundColor: colors.primary }]}>
-              <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
-            </Pressable>
-          </View>
-        ) : null}
-
-        <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Payment</Text>
-        <View style={styles.payRow}>
-          {PAYMENTS.map((p) => (
-            <Pressable
-              key={p}
-              accessibilityRole="button"
-              accessibilityState={{ selected: paymentMethod === p }}
-              accessibilityLabel={`Payment method ${formatPaymentMethodLabel(p)}`}
-              onPress={() => setPaymentMethod(p)}
-              style={[
-                styles.payChip,
-                {
-                  backgroundColor: paymentMethod === p ? colors.primary : colors.surfaceContainerHigh,
-                },
-              ]}>
-              <Text
-                style={{
-                  color: paymentMethod === p ? colors.onPrimary : colors.onSecondaryContainer,
-                  fontFamily: labelFont,
-                  fontSize: 12,
-                  fontWeight: '600',
-                }}>
-                {formatPaymentMethodLabel(p)}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={s.paymentToggle}>
+          {(['CARD', 'CASH'] as const).map(pm => {
+            const isActive = paymentMethod === pm;
+            return (
+              <Pressable key={pm} onPress={() => setPaymentMethod(pm)}
+                style={[s.paymentChip, { backgroundColor: isActive ? accentColor : 'transparent' }]}>
+                <MaterialIcons name={pm === 'CARD' ? 'credit-card' : 'account-balance-wallet'} size={14} color={isActive ? '#FFFFFF' : colors.onSurfaceVariant} />
+                <Text style={[s.paymentChipText, { color: isActive ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                  {pm === 'CARD' ? 'Card' : 'Cash'}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+      </View>
 
+      {/* ── Travel mode options (trip/FX) ── */}
+      {travelModeEnabled ? (
+        <View style={s.travelRow}>
+          <Pressable onPress={() => setTripPickerOpen(true)} style={[s.metaChip, { backgroundColor: colors.surfaceContainerHigh }]}>
+            <MaterialIcons name="flight" size={14} color={colors.onSurfaceVariant} />
+            <Text style={[s.metaChipText, { color: colors.onSurface, fontFamily: labelFont }]}>{tripLabel}</Text>
+          </Pressable>
+          <Pressable onPress={() => setShowFxModal(true)} style={[s.metaChip, { backgroundColor: isFx ? accentColor : colors.surfaceContainerHigh }]}>
+            <MaterialIcons name="currency-exchange" size={14} color={isFx ? '#FFFFFF' : colors.onSurfaceVariant} />
+            <Text style={[s.metaChipText, { color: isFx ? '#FFFFFF' : colors.onSurface, fontFamily: labelFont }]}>{isFx ? txnCurrencyCode : 'FX'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* ── Number pad (fixed height) ── */}
+      <NumberPad onDigit={onDigit} onDecimal={onDecimal} onBackspace={onBackspace} colors={colors} style={s.pad} />
+
+      {/* ── Save / Delete buttons ── */}
+      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 4 }]}>
         {editId ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete transaction"
-            onPress={onDelete}
-            disabled={saving}
-            style={[styles.deleteBtn, { borderColor: colors.error, opacity: saving ? 0.5 : 1 }]}>
-            <Text style={[styles.deleteText, { color: colors.error, fontFamily: labelFont }]}>
-              Delete transaction
-            </Text>
+          <Pressable onPress={onDelete} style={[s.deleteBtn, { borderColor: colors.error }]}>
+            <MaterialIcons name="delete-outline" size={18} color={colors.error} />
+            <Text style={[s.deleteBtnText, { color: colors.error, fontFamily: labelFont }]}>Delete</Text>
           </Pressable>
         ) : null}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={editId ? 'Save changes' : 'Save transaction'}
-          onPress={onSave}
-          disabled={saving}
-          style={[
-            styles.saveBtn,
-            { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 },
-          ]}>
-          {saving ? (
-            <ActivityIndicator color={colors.onPrimary} />
-          ) : (
-            <Text style={[styles.saveText, { color: colors.onPrimary, fontFamily: headlineFont }]}>
-              Save
+        <Pressable onPress={onSave} disabled={saving} style={[s.saveBtn, { backgroundColor: accentColor, opacity: saving ? 0.7 : 1 }]}>
+          {saving ? <ActivityIndicator color="#FFFFFF" /> : (
+            <Text style={[s.saveText, { color: '#FFFFFF', fontFamily: headlineFont }]}>
+              {type === 'expense' ? 'Save Expense' : 'Save Income'}
             </Text>
           )}
         </Pressable>
-      </ScrollView>
+      </View>
 
-      <Modal visible={pickerOpen} transparent animationType="fade">
-        <Pressable style={styles.modalBackdrop} onPress={() => setPickerOpen(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>
-              Category
-            </Text>
-            <FlatList
-              data={catList}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={item.name}
-                  style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
-                  onPress={() => {
-                    setCategoryId(item.id);
-                    setPickerOpen(false);
-                  }}>
-                  <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>{item.name}</Text>
-                </Pressable>
-              )}
-            />
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={tripPickerOpen} transparent animationType="fade">
-        <Pressable style={styles.modalBackdrop} onPress={() => setTripPickerOpen(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>Trip</Text>
-            <FlatList
-              data={tripPickerRows}
-              keyExtractor={(item) => item.rowKey}
-              renderItem={({ item }) => {
-                if (item.kind === 'none') {
-                  return (
-                    <Pressable
-                      style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
-                      onPress={() => {
-                        setSelectedTripId(null);
-                        setTripPickerOpen(false);
-                      }}>
-                      <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>
-                        None — everyday spending
-                      </Text>
-                    </Pressable>
-                  );
-                }
-                if (item.kind === 'new') {
-                  return (
-                    <Pressable
-                      style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
-                      onPress={() => {
-                        setTripPickerOpen(false);
-                        setNewTripModalOpen(true);
-                      }}>
-                      <Text style={{ color: colors.primary, fontFamily: labelFont, fontWeight: '700', fontSize: 16 }}>
-                        + Start new trip
-                      </Text>
-                    </Pressable>
-                  );
-                }
-                const t = item.trip;
-                return (
-                  <Pressable
-                    style={[styles.modalRow, { borderBottomColor: colors.outlineVariant }]}
-                    onPress={() => {
-                      setSelectedTripId(t.id);
-                      setTripPickerOpen(false);
-                    }}>
-                    <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>
-                      {t.name} · {t.status}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          </View>
-        </Pressable>
-      </Modal>
-
-      <Modal visible={newTripModalOpen} transparent animationType="fade">
-        <Pressable style={styles.modalBackdrop} onPress={() => setNewTripModalOpen(false)}>
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>New trip</Text>
-            <TextInput
-              value={newTripName}
-              onChangeText={setNewTripName}
-              placeholder="Trip name"
-              placeholderTextColor={colors.onSurfaceVariant}
-              style={[
-                styles.input,
-                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
-              ]}
-            />
-            <Pressable
-              onPress={() => void onCreateQuickTrip()}
-              disabled={saving}
-              style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 16 }]}>
-              <Text style={{ color: colors.onPrimary, fontFamily: headlineFont, fontWeight: '700' }}>Create & set active</Text>
+      {/* ── Modals ── */}
+      {showDate && Platform.OS === 'android' ? <DateTimePicker value={occurredAt} mode="date" display="default" onChange={(_, d) => { setShowDate(false); if (d) setOccurredAt(d); }} /> : null}
+      {showDate && Platform.OS === 'ios' ? (
+        <Modal visible transparent animationType="fade">
+          <Pressable style={s.backdrop} onPress={() => setShowDate(false)}>
+            <View style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+              <DateTimePicker value={occurredAt} mode="date" display="spinner" onChange={(_, d) => { if (d) setOccurredAt(d); }} />
+              <Pressable onPress={() => setShowDate(false)} style={[s.sheetBtn, { backgroundColor: accentColor }]}>
+                <Text style={{ color: '#FFFFFF', fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+      ) : null}
+      <Modal visible={showFxModal} transparent animationType="fade">
+        <Pressable style={s.backdrop} onPress={() => setShowFxModal(false)}>
+          <Pressable onPress={e => e.stopPropagation()} style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[s.sheetTitle, { color: accentColor, fontFamily: headlineFont }]}>Currency</Text>
+            <CurrencyPickerField value={txnCurrencyCode} onChange={c => { setTxnCurrencyCode(c); if (c === profileCurrency) setExchangeRateText('1'); }} colors={colors} />
+            {isFx ? (
+              <>
+                <Text style={[s.rateLabel, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Exchange rate</Text>
+                <TextInput value={exchangeRateText} onChangeText={setExchangeRateText} keyboardType="decimal-pad" placeholder="e.g. 83.50" placeholderTextColor={colors.onSurfaceVariant} style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont }]} />
+                <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12, marginTop: 4 }}>1 {txnCurrencyCode} = {exchangeRateText || '?'} {profileCurrency}</Text>
+              </>
+            ) : null}
+            <Pressable onPress={() => setShowFxModal(false)} style={[s.sheetBtn, { backgroundColor: accentColor }]}>
+              <Text style={{ color: '#FFFFFF', fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
             </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+      <Modal visible={tripPickerOpen} transparent animationType="fade">
+        <Pressable style={s.backdrop} onPress={() => setTripPickerOpen(false)}>
+          <View style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[s.sheetTitle, { color: accentColor, fontFamily: headlineFont }]}>Trip</Text>
+            <Pressable style={s.sheetRow} onPress={() => { setSelectedTripId(null); setTripPickerOpen(false); }}><Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>None</Text></Pressable>
+            {tripList.map(t => <Pressable key={t.id} style={s.sheetRow} onPress={() => { setSelectedTripId(t.id); setTripPickerOpen(false); }}><Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>{t.name} · {t.status}</Text></Pressable>)}
+            <Pressable style={s.sheetRow} onPress={() => { setTripPickerOpen(false); setNewTripModalOpen(true); }}><Text style={{ color: accentColor, fontFamily: labelFont, fontWeight: '700' }}>+ New trip</Text></Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+      <Modal visible={newTripModalOpen} transparent animationType="fade">
+        <Pressable style={s.backdrop} onPress={() => setNewTripModalOpen(false)}>
+          <Pressable onPress={e => e.stopPropagation()} style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[s.sheetTitle, { color: accentColor, fontFamily: headlineFont }]}>New trip</Text>
+            <TextInput value={newTripName} onChangeText={setNewTripName} placeholder="Trip name" placeholderTextColor={colors.onSurfaceVariant} style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont }]} />
+            <Pressable onPress={() => void onCreateTrip()} disabled={saving} style={[s.sheetBtn, { backgroundColor: accentColor, marginTop: 12 }]}>
+              <Text style={{ color: '#FFFFFF', fontFamily: headlineFont, fontWeight: '700' }}>Create</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scroll: {
-    padding: 20,
-    paddingBottom: 40,
-    gap: 8,
-  },
-  label: {
-    fontSize: 12,
-    marginTop: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  segment: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  segBtn: {
-    flex: 1,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  segText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  input: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    marginTop: 6,
-  },
-  pickerTrigger: {
-    justifyContent: 'center',
-  },
-  payRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  payChip: {
-    minHeight: MIN_TOUCH_TARGET,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-    justifyContent: 'center',
-  },
-  deleteBtn: {
-    marginTop: 28,
-    borderRadius: 999,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  deleteText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  saveBtn: {
-    marginTop: 12,
-    borderRadius: 999,
-    minHeight: MIN_TOUCH_TARGET,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveText: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  error: {
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    maxHeight: '70%',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  modalRow: {
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  iosDateWrap: {
-    marginTop: 8,
-  },
-  iosDone: {
-    marginTop: 8,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  rateHelper: {
-    fontSize: 12,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-  ratePreview: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginTop: 2,
-    marginLeft: 4,
-  },
+const s = StyleSheet.create({
+  root: { flex: 1 },
+  center: { justifyContent: 'center', alignItems: 'center' },
+
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingBottom: 8 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
+
+  // Type toggle
+  typeRow: { flexDirection: 'row', marginHorizontal: 16, borderRadius: 999, padding: 3 },
+  typeChip: { flex: 1, paddingVertical: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  typeChipText: { fontSize: 14, fontWeight: '600' },
+
+  // Amount
+  amountSection: { alignItems: 'center', paddingVertical: 10 },
+  amountRow: { flexDirection: 'row', alignItems: 'center' },
+  amountSymbol: { fontSize: 28, fontWeight: '700', marginRight: 4 },
+  amountText: { fontSize: 40, fontWeight: '800', letterSpacing: -1 },
+  amountCursor: { width: 2, height: 32, marginLeft: 2, borderRadius: 1 },
+  errorText: { fontSize: 12, marginBottom: 4 },
+  fxText: { fontSize: 12, fontWeight: '600', marginTop: 4 },
+
+  // Spacer to center amount and push bottom content down
+  spacer: { flex: 1 },
+
+  // Categories
+  catScroll: { flexGrow: 0, marginTop: 12 },
+  catScrollContent: { paddingHorizontal: 16, gap: 8 },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: 999 },
+  catLabel: { fontSize: 12, fontWeight: '600' },
+
+  // Note
+  noteRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: 'transparent' },
+  noteInput: { flex: 1, fontSize: 14, marginLeft: 10, padding: 0 },
+
+  // Date & Payment row
+  metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 10 },
+  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
+  metaChipText: { fontSize: 12, fontWeight: '600' },
+  paymentToggle: { flexDirection: 'row', gap: 4 },
+  paymentChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999 },
+  paymentChipText: { fontSize: 12, fontWeight: '600' },
+
+  // Travel row
+  travelRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 8 },
+
+  // Number pad
+  pad: { height: 200, marginTop: 12 },
+
+  // Bottom bar
+  bottomBar: { paddingHorizontal: 16, paddingTop: 16 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingVertical: 10, marginBottom: 8 },
+  deleteBtnText: { fontSize: 14, fontWeight: '600' },
+  saveBtn: { borderRadius: 999, minHeight: MIN_TOUCH_TARGET, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  saveText: { fontSize: 16, fontWeight: '700' },
+
+  // Modals
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheet: { maxHeight: '70%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
+  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  sheetBtn: { marginTop: 12, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  sheetRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(0,0,0,0.1)' },
+  textInput: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, minHeight: 44 },
+  rateLabel: { fontSize: 11, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
 });
