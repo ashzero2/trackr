@@ -15,6 +15,7 @@ import {
 
 import { EmptyState } from '@/components/empty-state';
 import { FabGradient } from '@/components/fab-gradient';
+import { UndoSnackbar } from '@/components/undo-snackbar';
 import { ScreenScaffold } from '@/components/screen-scaffold';
 import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -80,13 +81,40 @@ export default function HistoryScreen() {
     setRefreshing(false);
   }, [load]);
 
+  // ── Undo-able delete ──
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    transaction: TransactionWithCategory;
+  } | null>(null);
+
   const onDelete = useCallback(
-    async (id: string) => {
+    (id: string) => {
+      const txn = rows.find((r) => r.id === id);
+      if (!txn) return;
+      // Optimistically remove from UI
       setRows((prev) => prev.filter((r) => r.id !== id));
-      await transactions?.delete(id);
+      // Stage for delayed deletion
+      setPendingDelete({ id, transaction: txn });
     },
-    [transactions],
+    [rows],
   );
+
+  const commitDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    await transactions?.delete(pendingDelete.id);
+    setPendingDelete(null);
+  }, [pendingDelete, transactions]);
+
+  const undoDelete = useCallback(() => {
+    if (!pendingDelete) return;
+    // Restore the transaction to the list
+    setRows((prev) => {
+      const restored = [...prev, pendingDelete.transaction];
+      restored.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      return restored;
+    });
+    setPendingDelete(null);
+  }, [pendingDelete]);
 
   const categoryOptions = useMemo(() => {
     const seen = new Map<string, string>();
@@ -386,6 +414,15 @@ export default function HistoryScreen() {
           ))
         )}
       </View>
+
+      {pendingDelete ? (
+        <UndoSnackbar
+          id={pendingDelete.id}
+          message="Transaction deleted"
+          onExpire={commitDelete}
+          onUndo={undoDelete}
+        />
+      ) : null}
 
       <Modal visible={yearModal} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setYearModal(false)}>

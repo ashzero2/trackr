@@ -26,19 +26,10 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
     swipeRef.current?.close();
   }
 
-  function confirmDelete() {
+  function triggerDelete() {
     close();
-    Alert.alert('Delete transaction?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          onDelete(transaction.id);
-        },
-      },
-    ]);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    onDelete(transaction.id);
   }
 
   function handleEdit() {
@@ -63,14 +54,14 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
         (idx) => {
           if (idx === 1) handleEdit();
           if (idx === 2) handleDuplicate();
-          if (idx === 3) confirmDelete();
+          if (idx === 3) triggerDelete();
         },
       );
     } else {
       Alert.alert(transaction.note?.trim() || transaction.categoryName, undefined, [
         { text: 'Edit', onPress: handleEdit },
         { text: 'Duplicate', onPress: handleDuplicate },
-        { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        { text: 'Delete', style: 'destructive', onPress: triggerDelete },
         { text: 'Cancel', style: 'cancel' },
       ]);
     }
@@ -81,7 +72,7 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Delete transaction"
-        onPress={confirmDelete}
+        onPress={triggerDelete}
         style={[styles.actionBtn, { backgroundColor: colors.error }]}>
         <MaterialIcons name="delete-outline" size={22} color="#fff" />
         <Text style={[styles.actionLabel, { fontFamily: bodyFont }]}>Delete</Text>

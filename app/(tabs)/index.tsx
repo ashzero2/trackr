@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
+import { UndoSnackbar } from '@/components/undo-snackbar';
 
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { DashboardHeroCard } from '@/components/gradient-hero-preview';
@@ -74,13 +75,40 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [load]);
 
+  // ── Undo-able delete ──
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    transaction: TransactionWithCategory;
+  } | null>(null);
+
   const onDelete = useCallback(
-    async (id: string) => {
+    (id: string) => {
+      const txn = recent.find((r) => r.id === id);
+      if (!txn) return;
+      // Optimistically remove from UI
       setRecent((prev) => prev.filter((r) => r.id !== id));
-      await transactions?.delete(id);
+      // Stage for delayed deletion
+      setPendingDelete({ id, transaction: txn });
     },
-    [transactions],
+    [recent],
   );
+
+  const commitDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    await transactions?.delete(pendingDelete.id);
+    setPendingDelete(null);
+  }, [pendingDelete, transactions]);
+
+  const undoDelete = useCallback(() => {
+    if (!pendingDelete) return;
+    // Restore the transaction to the list
+    setRecent((prev) => {
+      const restored = [...prev, pendingDelete.transaction];
+      restored.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      return restored;
+    });
+    setPendingDelete(null);
+  }, [pendingDelete]);
 
   const vsLastMonthPercent = useMemo(() => {
     if (!summary || !prevSummary) return null;
@@ -273,6 +301,14 @@ export default function DashboardScreen() {
           </View>
         ))}
       </View>
+      {pendingDelete ? (
+        <UndoSnackbar
+          id={pendingDelete.id}
+          message="Transaction deleted"
+          onExpire={commitDelete}
+          onUndo={undoDelete}
+        />
+      ) : null}
     </ScreenScaffold>
   );
 }
