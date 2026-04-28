@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Polyline } from 'react-native-svg';
 
@@ -47,8 +47,24 @@ function SpendingTrendChartSvgBase({
     height,
   );
 
+  // Build an accessible description of the chart data
+  const a11yDescription = useMemo(() => {
+    if (values.length === 0) return 'No spending data available.';
+    const pairs = values.map((v, i) => `${labels[i] ?? `Point ${i + 1}`}: ${v.toLocaleString()}`);
+    const total = values.reduce((s, v) => s + v, 0);
+    const max = Math.max(...values);
+    const maxIdx = values.indexOf(max);
+    const peakInfo = labels[maxIdx] ? `Peak: ${labels[maxIdx]} at ${max.toLocaleString()}.` : '';
+    return `Spending trend chart with ${values.length} data points. ${peakInfo} Total: ${total.toLocaleString()}. Data: ${pairs.join(', ')}.`;
+  }, [values, labels]);
+
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.surfaceContainerLowest }]}>
+    <View
+      style={[styles.wrap, { backgroundColor: colors.surfaceContainerLowest }]}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Spending trend. ${subtitle ?? ''}`}
+      accessibilityHint={a11yDescription}>
       <View style={styles.headerBlock}>
         <View style={styles.headerTitles}>
           <Text style={[styles.title, { color: colors.primary, fontFamily: labelFont }]}>
