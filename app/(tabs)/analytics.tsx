@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
 import { SpendingTrendChart } from '@/components/spending-trend-chart';
@@ -20,7 +20,7 @@ import {
 } from '@/lib/analytics-buckets';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { monthRangeUtc, utcCalendarMonthNow } from '@/lib/dates';
+import { monthName, monthRangeUtc, utcCalendarMonthNow } from '@/lib/dates';
 import type { Budget, Category, MonthSummary } from '@/types/finance';
 
 export default function AnalyticsScreen() {
@@ -28,6 +28,10 @@ export default function AnalyticsScreen() {
   const { format } = useFormatMoney();
   const { travelModeEnabled } = useUserProfile();
   const { ready, error, transactions, budgets, categories, trips } = useDatabase();
+  const startYm = utcCalendarMonthNow();
+  const [year, setYear] = useState(startYm.year);
+  const [month, setMonth] = useState(startYm.month);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
   const [mode, setMode] = useState<'week' | 'month'>('month');
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
@@ -48,7 +52,8 @@ export default function AnalyticsScreen() {
 
   const load = useCallback(async () => {
     if (!transactions || !budgets || !categories || !trips) return;
-    const { year: y, month: m } = utcCalendarMonthNow();
+    const y = year;
+    const m = month;
     const [s, bl, sc, allCats, vs, yTrips] = await Promise.all([
       transactions.summaryForMonth(y, m),
       budgets.listForMonth(y, m),
@@ -87,7 +92,7 @@ export default function AnalyticsScreen() {
     }
 
     setInsight(computeMonthInsight(sc, s.totalExpenseCents));
-  }, [transactions, budgets, categories, trips, mode]);
+  }, [transactions, budgets, categories, trips, mode, year, month]);
 
   useFocusEffect(
     useCallback(() => {
@@ -148,6 +153,19 @@ export default function AnalyticsScreen() {
     <ScreenScaffold
       refreshing={refreshing}
       onRefresh={() => { void onRefresh(); }}>
+      {/* Month selector */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${monthName(month)} ${year}, tap to change`}
+        onPress={() => setMonthPickerOpen(true)}
+        style={[styles.monthPickerBtn, { backgroundColor: colors.surfaceContainerLow }]}>
+        <MaterialIcons name="calendar-month" size={18} color={colors.primary} />
+        <Text style={{ fontFamily: labelFont, fontWeight: '700', color: colors.primary }}>
+          {monthName(month)} {year}
+        </Text>
+        <MaterialIcons name="expand-more" size={18} color={colors.primary} />
+      </Pressable>
+
       <View style={styles.headRow}>
         <View>
           <Text style={[styles.kicker, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -320,6 +338,76 @@ export default function AnalyticsScreen() {
           <Text style={[styles.insightBody, { color: colors.insightCardBody, fontFamily: bodyFont }]}>{insight}</Text>
         </View>
       </View>
+      {/* Month+Year picker modal */}
+      <Modal visible={monthPickerOpen} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setMonthPickerOpen(false)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+              Select month
+            </Text>
+            <View style={styles.pickerYearRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Previous year"
+                onPress={() => setYear((y) => y - 1)}
+                style={[styles.pickerArrow, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <MaterialIcons name="chevron-left" size={24} color={colors.primary} />
+              </Pressable>
+              <Text style={{ fontFamily: headlineFont, fontWeight: '800', fontSize: 20, color: colors.onSurface }}>
+                {year}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Next year"
+                onPress={() => setYear((y) => y + 1)}
+                style={[styles.pickerArrow, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <MaterialIcons name="chevron-right" size={24} color={colors.primary} />
+              </Pressable>
+            </View>
+            <View style={styles.pickerMonthGrid}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                const active = m === month;
+                return (
+                  <Pressable
+                    key={m}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`${monthName(m)} ${year}`}
+                    onPress={() => {
+                      setMonth(m);
+                      setMonthPickerOpen(false);
+                    }}
+                    style={[
+                      styles.pickerMonthCell,
+                      active
+                        ? { backgroundColor: colors.primary }
+                        : { backgroundColor: colors.surfaceContainerHigh },
+                    ]}>
+                    <Text
+                      style={{
+                        fontFamily: active ? labelFont : bodyFont,
+                        fontWeight: active ? '800' : '600',
+                        fontSize: 14,
+                        color: active ? colors.onPrimary : colors.onSurface,
+                      }}>
+                      {monthName(m).slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close picker"
+              onPress={() => setMonthPickerOpen(false)}
+              style={[styles.pickerDone, { borderColor: colors.outlineVariant }]}>
+              <Text style={{ fontFamily: labelFont, fontWeight: '700', color: colors.onSurface }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenScaffold>
   );
 }
@@ -463,5 +551,70 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 6,
+  },
+  monthPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    minHeight: MIN_TOUCH_TARGET,
+    marginBottom: 12,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  pickerYearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  pickerArrow: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerMonthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  pickerMonthCell: {
+    width: '28%',
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  pickerDone: {
+    marginTop: 18,
+    alignSelf: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
   },
 });
