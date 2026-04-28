@@ -222,6 +222,20 @@ export default function SettingsScreen() {
             currencyCode={currencyCode}
             onConfirm={(code) => void setProfile({ currencyCode: code })}
           />
+          <Row
+            icon="flight"
+            iconBg={colors.surfaceContainerLowest}
+            title="Travel mode"
+            subtitle={travelModeEnabled ? 'On — new expenses go to your active trip' : 'Off — standard tracking'}
+            right={
+              <Switch
+                value={travelModeEnabled}
+                onValueChange={(v) => void setProfile({ travelModeEnabled: v })}
+                trackColor={{ false: colors.outlineVariant, true: colors.primaryContainer }}
+                thumbColor={travelModeEnabled ? colors.primary : colors.surfaceContainerLowest}
+              />
+            }
+          />
         </Card>
       </SettingsSection>
 
