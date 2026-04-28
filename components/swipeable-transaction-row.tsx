@@ -1,5 +1,4 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useRef } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -9,6 +8,7 @@ import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSw
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { bodyFont } from '@/constants/typography';
 import { TransactionRow } from '@/components/transaction-row';
+import { warningHaptic } from '@/lib/haptics';
 import type { TransactionWithCategory } from '@/types/finance';
 
 type Props = {
@@ -28,7 +28,7 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
 
   function triggerDelete() {
     close();
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    warningHaptic();
     onDelete(transaction.id);
   }
 
@@ -43,7 +43,7 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
   }
 
   function handleLongPress() {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    warningHaptic();
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {

@@ -31,6 +31,7 @@ import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { transactionsToCsv } from '@/lib/export-csv';
 import { getGeminiApiKey } from '@/lib/ai-settings';
+import { warningHaptic } from '@/lib/haptics';
 import {
   importTransactionRows,
   parseTransactionImportJson,
@@ -159,6 +160,7 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: () => {
             setDeleteConfirmText('');
+            warningHaptic();
             setDeleteModalOpen(true);
           },
         },

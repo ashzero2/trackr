@@ -21,8 +21,7 @@ import type { SemanticColors } from '@/constants/design-tokens';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { CATEGORY_ICON_KEYS, materialIconNameForCategory } from '@/lib/category-icons';
-import { lightImpact } from '@/lib/haptics';
-import * as Haptics from 'expo-haptics';
+import { lightImpact, warningHaptic } from '@/lib/haptics';
 import type { EntryType } from '@/types/finance';
 
 type ModalState =
@@ -167,7 +166,7 @@ function CategoryEditorModal({
 
   const onDelete = () => {
     if (!editing) return;
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    warningHaptic();
     Alert.alert(
       `Delete "${editing.name}"?`,
       `This category will be permanently removed. This action cannot be undone.\n\n${
@@ -188,7 +187,7 @@ function CategoryEditorModal({
                   Alert.alert('Cannot delete', 'This category still has transactions. Reassign or delete them first.');
                   return;
                 }
-                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                lightImpact();
                 onClose();
               },
             },

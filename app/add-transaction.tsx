@@ -14,7 +14,7 @@ import { useAppColors } from '@/contexts/color-scheme-context';
 import { useRepositories } from '@/contexts/database-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { lightImpact } from '@/lib/haptics';
+import { lightImpact, warningHaptic } from '@/lib/haptics';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { CurrencyPickerField } from '@/components/currency-picker-field';
 import { NumberPad } from '@/components/number-pad';
@@ -202,7 +202,7 @@ export default function AddTransactionScreen() {
     finally { setSaving(false); }
   };
 
-  const onDelete = () => { if (!editId) return; Alert.alert('Delete?', 'Cannot undo.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { setSaving(true); try { await transactions.delete(editId); savedRef.current = true; lightImpact(); router.back(); } catch (e) { setError(e instanceof Error ? e.message : 'Error'); } finally { setSaving(false); } } }]); };
+  const onDelete = () => { if (!editId) return; warningHaptic(); Alert.alert('Delete?', 'Cannot undo.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { setSaving(true); try { await transactions.delete(editId); savedRef.current = true; lightImpact(); router.back(); } catch (e) { setError(e instanceof Error ? e.message : 'Error'); } finally { setSaving(false); } } }]); };
 
   const onCreateTrip = async () => {
     const n = newTripName.trim();
