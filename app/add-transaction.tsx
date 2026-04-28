@@ -69,6 +69,35 @@ export default function AddTransactionScreen() {
   const sym = useMemo(() => getCurrencySymbol(txnCurrencyCode), [txnCurrencyCode]);
   const isFx = txnCurrencyCode !== profileCurrency;
 
+  // ── Dirty-state tracking for discard confirmation ──
+  const savedRef = useRef(false); // set to true after successful save/delete
+  const isDirty = useMemo(() => {
+    // In edit mode, any field change from the loaded value counts as dirty.
+    // In add mode, any non-default value counts as dirty.
+    if (amountText.length > 0 && amountText !== '0') return true;
+    if (note.trim().length > 0) return true;
+    if (categoryId !== null) return true;
+    return false;
+  }, [amountText, note, categoryId]);
+
+  useEffect(() => {
+    const unsubscribe = nav.addListener('beforeRemove', (e: any) => {
+      // Allow navigation if form was saved/deleted or nothing was entered
+      if (savedRef.current || !isDirty) return;
+      // Prevent default navigation
+      e.preventDefault();
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved changes. Are you sure you want to go back?',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => nav.dispatch(e.data.action) },
+        ],
+      );
+    });
+    return unsubscribe;
+  }, [nav, isDirty]);
+
   // ── Number pad (dismiss keyboard on tap) ──
   const [amountLimitHit, setAmountLimitHit] = useState(false);
   const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -166,12 +195,13 @@ export default function AddTransactionScreen() {
       const payload = { amountCents: cents, type, categoryId, occurredAt: iso, note: note.trim() || null, paymentMethod, tripId: selectedTripId, currencyCode: txnCurrencyCode, amountBaseCents: isFx ? Math.round(cents * rate) : cents, exchangeRateToBase: rate };
       if (editId) await transactions.update(editId, payload);
       else await transactions.insert({ id: await Crypto.randomUUID(), ...payload });
+      savedRef.current = true;
       lightImpact(); router.back();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save.'); }
     finally { setSaving(false); }
   };
 
-  const onDelete = () => { if (!editId) return; Alert.alert('Delete?', 'Cannot undo.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { setSaving(true); try { await transactions.delete(editId); lightImpact(); router.back(); } catch (e) { setError(e instanceof Error ? e.message : 'Error'); } finally { setSaving(false); } } }]); };
+  const onDelete = () => { if (!editId) return; Alert.alert('Delete?', 'Cannot undo.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { setSaving(true); try { await transactions.delete(editId); savedRef.current = true; lightImpact(); router.back(); } catch (e) { setError(e instanceof Error ? e.message : 'Error'); } finally { setSaving(false); } } }]); };
 
   const onCreateTrip = async () => {
     const n = newTripName.trim();
