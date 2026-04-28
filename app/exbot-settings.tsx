@@ -32,6 +32,7 @@ export default function ExbotSettingsScreen() {
   const [geminiKeyDraft, setGeminiKeyDraft] = useState('');
   const [geminiHasKey, setGeminiHasKey] = useState(false);
   const [geminiModelDraft, setGeminiModelDraft] = useState(DEFAULT_GEMINI_MODEL);
+  const [showKey, setShowKey] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -73,19 +74,34 @@ export default function ExbotSettingsScreen() {
           <Text style={[styles.fieldStatus, { color: colors.onSurface, fontFamily: bodyFont }]}>
             {geminiHasKey ? 'A key is saved. Paste a new one to replace it.' : 'No key saved yet.'}
           </Text>
-          <TextInput
-            value={geminiKeyDraft}
-            onChangeText={setGeminiKeyDraft}
-            placeholder="Paste Gemini API key"
-            placeholderTextColor={colors.onSurfaceVariant}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[
-              styles.input,
-              { color: colors.onSurface, backgroundColor: colors.surfaceContainerLowest, fontFamily: bodyFont },
-            ]}
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              value={geminiKeyDraft}
+              onChangeText={setGeminiKeyDraft}
+              placeholder="Paste Gemini API key"
+              placeholderTextColor={colors.onSurfaceVariant}
+              secureTextEntry={!showKey}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.input,
+                styles.inputFlex,
+                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLowest, fontFamily: bodyFont },
+              ]}
+            />
+            <Pressable
+              onPress={() => setShowKey((v) => !v)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={showKey ? 'Hide API key' : 'Show API key'}
+              style={[styles.eyeBtn, { backgroundColor: colors.surfaceContainerLowest }]}>
+              <MaterialIcons
+                name={showKey ? 'visibility-off' : 'visibility'}
+                size={20}
+                color={colors.onSurfaceVariant}
+              />
+            </Pressable>
+          </View>
 
           {/* Model ID */}
           <Text style={[styles.fieldLabel, { color: colors.onSurfaceVariant, fontFamily: labelFont, marginTop: 16 }]}>
@@ -226,11 +242,26 @@ const styles = StyleSheet.create({
   fieldStatus: {
     fontSize: 13,
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   input: {
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 17,
+  },
+  inputFlex: {
+    flex: 1,
+  },
+  eyeBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modelHint: {
     fontSize: 12,
