@@ -14,11 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/app-header';
 import { EmptyState } from '@/components/empty-state';
+import { UndoSnackbar } from '@/components/undo-snackbar';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useRepositories } from '@/contexts/database-context';
 import { useFormatMoney } from '@/hooks/use-format-money';
+import { lightImpact } from '@/lib/haptics';
 import { autoInsertRule } from '@/lib/recurrence-checker';
 import { frequencyLabel, todayIsoDate } from '@/lib/recurrence-engine';
 import type { RecurringTransaction } from '@/types/finance';
@@ -30,6 +32,7 @@ export default function ManageRecurringScreen() {
   const { recurring, transactions } = useRepositories();
   const [rules, setRules] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,8 +68,12 @@ export default function ManageRecurringScreen() {
   const onLogNow = async (rule: RecurringTransaction) => {
     try {
       await autoInsertRule(rule, todayIsoDate(), { recurring, transactions });
+      lightImpact();
       await load();
-      Alert.alert('Logged', `"${rule.title}" was added and the next due date was updated.`);
+      setToast({
+        id: rule.id + Date.now(),
+        message: `✓ Logged "${rule.title}" — ${format(rule.amountCents)}`,
+      });
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Could not log transaction.');
     }
@@ -190,6 +197,15 @@ export default function ManageRecurringScreen() {
             );
           })
         )}
+        {toast ? (
+          <UndoSnackbar
+            key={toast.id}
+            id={toast.id}
+            message={toast.message}
+            onExpire={() => setToast(null)}
+            onUndo={() => setToast(null)}
+          />
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
