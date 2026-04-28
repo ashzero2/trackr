@@ -166,14 +166,28 @@ export default function OnboardingScreen() {
                   </Text>
                 </Pressable>
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Skip introduction"
-                  disabled={busy}
-                  onPress={() => setIntroStep(3)}
-                  style={styles.back}>
-                  <Text style={{ color: colors.onSurfaceVariant, fontFamily: labelFont }}>Skip intro</Text>
-                </Pressable>
+                <View style={styles.introFooter}>
+                  {introStep > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Previous slide"
+                      disabled={busy}
+                      onPress={() => setIntroStep((s) => Math.max(s - 1, 0) as 0 | 1 | 2 | 3)}
+                      style={styles.back}>
+                      <Text style={{ color: colors.primary, fontFamily: labelFont }}>Back</Text>
+                    </Pressable>
+                  ) : (
+                    <View />
+                  )}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Skip introduction"
+                    disabled={busy}
+                    onPress={() => setIntroStep(3)}
+                    style={styles.back}>
+                    <Text style={{ color: colors.onSurfaceVariant, fontFamily: labelFont }}>Skip intro</Text>
+                  </Pressable>
+                </View>
               </>
             );
           })() : null}
@@ -219,6 +233,9 @@ export default function OnboardingScreen() {
                 }}
                 style={[styles.cta, { backgroundColor: colors.primary, opacity: busy ? 0.7 : 1 }]}>
                 <Text style={{ color: colors.onPrimary, fontFamily: headlineFont, fontWeight: '700' }}>Continue</Text>
+              </Pressable>
+              <Pressable onPress={() => setIntroStep(2)} style={styles.back} disabled={busy}>
+                <Text style={{ color: colors.primary, fontFamily: labelFont }}>Back to intro</Text>
               </Pressable>
             </>
           ) : null}
@@ -398,5 +415,11 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
+  },
+  introFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
   },
 });
