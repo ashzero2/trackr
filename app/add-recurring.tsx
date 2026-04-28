@@ -16,8 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-
+import { DatePickerField } from '@/components/date-picker-field';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -248,37 +247,14 @@ export default function AddRecurringScreen() {
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
           {editId ? 'Start date' : 'First due date'}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Date ${startsAt.toLocaleDateString()}`}
-          onPress={() => setShowDate(true)}
-          style={[styles.input, styles.pickerTrigger, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <Text style={{ color: colors.onSurface, fontFamily: bodyFont }}>
-            {startsAt.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
-          </Text>
-        </Pressable>
-
-        {showDate && Platform.OS === 'android' ? (
-          <DateTimePicker
+        <View style={{ marginTop: 6 }}>
+          <DatePickerField
             value={startsAt}
-            mode="date"
-            display="default"
-            onChange={(_, d) => { setShowDate(false); if (d) setStartsAt(d); }}
+            onChange={setStartsAt}
+            colors={colors}
+            label={startsAt.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
           />
-        ) : null}
-        {showDate && Platform.OS === 'ios' ? (
-          <View style={styles.iosDateWrap}>
-            <DateTimePicker
-              value={startsAt}
-              mode="date"
-              display="spinner"
-              onChange={(_, d) => { if (d) setStartsAt(d); }}
-            />
-            <Pressable onPress={() => setShowDate(false)} style={[styles.iosDone, { backgroundColor: colors.primary }]}>
-              <Text style={{ color: colors.onPrimary, fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        </View>
 
         <Text style={[styles.label, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>Payment</Text>
         <View style={styles.payRow}>

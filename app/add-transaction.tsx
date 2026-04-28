@@ -7,7 +7,7 @@ import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { DatePickerField } from '@/components/date-picker-field';
 import { bodyFont, displayFont, headlineFont, labelFont } from '@/constants/typography';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { useAppColors } from '@/contexts/color-scheme-context';
@@ -307,10 +307,12 @@ export default function AddTransactionScreen() {
 
       {/* ── Date + Payment method row ── */}
       <View style={s.metaRow}>
-        <Pressable onPress={() => setShowDate(true)} style={[s.metaChip, { backgroundColor: colors.surfaceContainerHigh }]}>
-          <MaterialIcons name="event" size={16} color={colors.onSurfaceVariant} />
-          <Text style={[s.metaChipText, { color: colors.onSurface, fontFamily: labelFont }]}>{dateLabel}</Text>
-        </Pressable>
+        <DatePickerField
+          value={occurredAt}
+          onChange={setOccurredAt}
+          colors={colors}
+          accentColor={accentColor}
+        />
 
         <View style={s.paymentToggle}>
           {(['CARD', 'CASH'] as const).map(pm => {
@@ -363,19 +365,6 @@ export default function AddTransactionScreen() {
       </View>
 
       {/* ── Modals ── */}
-      {showDate && Platform.OS === 'android' ? <DateTimePicker value={occurredAt} mode="date" display="default" onChange={(_, d) => { setShowDate(false); if (d) setOccurredAt(d); }} /> : null}
-      {showDate && Platform.OS === 'ios' ? (
-        <Modal visible transparent animationType="fade">
-          <Pressable style={s.backdrop} onPress={() => setShowDate(false)}>
-            <View style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
-              <DateTimePicker value={occurredAt} mode="date" display="spinner" onChange={(_, d) => { if (d) setOccurredAt(d); }} />
-              <Pressable onPress={() => setShowDate(false)} style={[s.sheetBtn, { backgroundColor: accentColor }]}>
-                <Text style={{ color: '#FFFFFF', fontFamily: labelFont, fontWeight: '700' }}>Done</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
-      ) : null}
       <Modal visible={showFxModal} transparent animationType="fade">
         <Pressable style={s.backdrop} onPress={() => setShowFxModal(false)}>
           <Pressable onPress={e => e.stopPropagation()} style={[s.sheet, { backgroundColor: colors.surfaceContainerLowest }]}>
