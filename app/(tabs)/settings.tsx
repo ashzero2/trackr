@@ -32,6 +32,7 @@ import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { transactionsToCsv } from '@/lib/export-csv';
 import { getGeminiApiKey } from '@/lib/ai-settings';
 import { warningHaptic } from '@/lib/haptics';
+import { SettingsSection } from '@/components/settings-section';
 import {
   importTransactionRows,
   parseTransactionImportJson,
@@ -206,7 +207,7 @@ export default function SettingsScreen() {
       <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>Settings</Text>
 
       {/* ── Profile ──────────────────────────────────────────────── */}
-      <Section title="Profile">
+      <SettingsSection title="Profile" icon="person">
         <Card divided>
           <PressableRow
             icon="person"
@@ -222,15 +223,15 @@ export default function SettingsScreen() {
             onConfirm={(code) => void setProfile({ currencyCode: code })}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Appearance ───────────────────────────────────────────── */}
-      <Section title="Appearance">
+      <SettingsSection title="Appearance" icon="palette">
         <Card divided>
           <ThemeRow />
           <ThemeColorPicker />
         </Card>
-      </Section>
+      </SettingsSection>
 
       <Modal visible={nameModalOpen} transparent animationType="fade" accessibilityViewIsModal>
         <Pressable style={styles.nameBackdrop} onPress={() => setNameModalOpen(false)}>
@@ -280,7 +281,7 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* ── Customization (moved up — most-used settings) ────────── */}
-      <Section title="Customization">
+      <SettingsSection title="Customization" icon="tune">
         <Card divided>
           <PressableRow
             icon="notifications"
@@ -307,10 +308,10 @@ export default function SettingsScreen() {
             onPress={() => router.push('/manage-budgets')}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Security ─────────────────────────────────────────────── */}
-      <Section title="Security">
+      <SettingsSection title="Security" icon="lock">
         <Card divided>
           <PressableRow
             icon={lockEnabled ? 'lock' : 'lock-open'}
@@ -355,10 +356,10 @@ export default function SettingsScreen() {
             </>
           ) : null}
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Travel ───────────────────────────────────────────────── */}
-      <Section title="Travel">
+      <SettingsSection title="Travel" icon="flight">
         <Card divided>
           <Row
             icon="flight"
@@ -402,10 +403,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Integrations ─────────────────────────────────────────── */}
-      <Section title="Integrations">
+      <SettingsSection title="Integrations" icon="auto-awesome">
         <Card divided>
           <PressableRow
             icon="auto-awesome"
@@ -414,10 +415,10 @@ export default function SettingsScreen() {
             onPress={() => router.push('/exbot-settings')}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Data & backup ────────────────────────────────────────── */}
-      <Section title="Data & backup">
+      <SettingsSection title="Data & backup" icon="backup">
         <Card divided>
           <PressableRow
             icon="import-export"
@@ -441,10 +442,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Danger zone ──────────────────────────────────────────── */}
-      <Section title="Danger zone">
+      <SettingsSection title="Danger zone" icon="warning" defaultExpanded={false}>
         <Card>
           <PressableRow
             icon="delete-forever"
@@ -455,10 +456,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── About ────────────────────────────────────────────────── */}
-      <Section title="About">
+      <SettingsSection title="About" icon="info-outline" defaultExpanded={false}>
         <Card>
           <Row
             icon="info-outline"
@@ -468,7 +469,7 @@ export default function SettingsScreen() {
             right={null}
           />
         </Card>
-      </Section>
+      </SettingsSection>
 
       {/* ── Delete confirmation modal ────────────────────────────── */}
       <Modal visible={deleteModalOpen} transparent animationType="fade" accessibilityViewIsModal>
