@@ -211,6 +211,13 @@ export default function ManageTripsScreen() {
                       {STATUS_LABELS[t.status]}
                       {activeTripId === t.id ? ' · currently tracking' : ''}
                     </Text>
+                    <Text style={{ fontFamily: bodyFont, fontSize: 12, color: colors.onSurfaceVariant, marginTop: 2 }}>
+                      {new Date(t.startAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {' — '}
+                      {t.endAt
+                        ? new Date(t.endAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+                        : 'Ongoing'}
+                    </Text>
                   </View>
                   <View style={styles.cardActions}>
                     <Pressable
