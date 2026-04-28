@@ -3,7 +3,6 @@ import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Modal,
   Pressable,
   ScrollView,
@@ -40,8 +39,6 @@ function matchesQuery(t: TransactionWithCategory, q: string): boolean {
     amountStr.replace('.', '').startsWith(s.replace('.', ''))
   );
 }
-
-const YEAR_OPTIONS = Array.from({ length: 18 }, (_, i) => 2018 + i);
 
 export default function HistoryScreen() {
   const { colors } = useAppColors();
@@ -426,23 +423,76 @@ export default function HistoryScreen() {
 
       <Modal visible={yearModal} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setYearModal(false)}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
-            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>Year</Text>
-            <FlatList
-              data={YEAR_OPTIONS}
-              keyExtractor={(y) => String(y)}
-              renderItem={({ item: y }) => (
-                <Pressable
-                  style={styles.yearRow}
-                  onPress={() => {
-                    setYear(y);
-                    setYearModal(false);
-                  }}>
-                  <Text style={{ fontFamily: bodyFont, fontSize: 17, color: colors.onSurface }}>{y}</Text>
-                </Pressable>
-              )}
-            />
-          </View>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary, fontFamily: headlineFont }]}>
+              Jump to month
+            </Text>
+
+            {/* Year row with arrows */}
+            <View style={styles.pickerYearRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Previous year"
+                onPress={() => setYear((y) => y - 1)}
+                style={[styles.pickerArrow, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <MaterialIcons name="chevron-left" size={24} color={colors.primary} />
+              </Pressable>
+              <Text style={{ fontFamily: headlineFont, fontWeight: '800', fontSize: 20, color: colors.onSurface }}>
+                {year}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Next year"
+                onPress={() => setYear((y) => y + 1)}
+                style={[styles.pickerArrow, { backgroundColor: colors.surfaceContainerHigh }]}>
+                <MaterialIcons name="chevron-right" size={24} color={colors.primary} />
+              </Pressable>
+            </View>
+
+            {/* Month grid */}
+            <View style={styles.pickerMonthGrid}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+                const active = m === month;
+                return (
+                  <Pressable
+                    key={m}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`${monthName(m)} ${year}`}
+                    onPress={() => {
+                      setMonth(m);
+                      setYearModal(false);
+                    }}
+                    style={[
+                      styles.pickerMonthCell,
+                      active
+                        ? { backgroundColor: colors.primary }
+                        : { backgroundColor: colors.surfaceContainerHigh },
+                    ]}>
+                    <Text
+                      style={{
+                        fontFamily: active ? labelFont : bodyFont,
+                        fontWeight: active ? '800' : '600',
+                        fontSize: 14,
+                        color: active ? colors.onPrimary : colors.onSurface,
+                      }}>
+                      {monthName(m).slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close picker"
+              onPress={() => setYearModal(false)}
+              style={[styles.pickerDone, { borderColor: colors.outlineVariant }]}>
+              <Text style={{ fontFamily: labelFont, fontWeight: '700', color: colors.onSurface }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
         </Pressable>
       </Modal>
     </ScreenScaffold>
@@ -582,5 +632,44 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 20,
     gap: 12,
+  },
+  pickerYearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  pickerArrow: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickerMonthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  pickerMonthCell: {
+    width: '28%',
+    minHeight: MIN_TOUCH_TARGET,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  pickerDone: {
+    marginTop: 18,
+    alignSelf: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
   },
 });
