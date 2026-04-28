@@ -22,6 +22,7 @@ import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { CATEGORY_ICON_KEYS, materialIconNameForCategory } from '@/lib/category-icons';
 import { lightImpact } from '@/lib/haptics';
+import * as Haptics from 'expo-haptics';
 import type { EntryType } from '@/types/finance';
 
 type ModalState =
@@ -166,21 +167,33 @@ function CategoryEditorModal({
 
   const onDelete = () => {
     if (!editing) return;
-    Alert.alert('Delete category?', `“${editing.name}” will be removed. This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          const r = await categories.deleteIfUnused(editing.id);
-          if (!r.ok) {
-            Alert.alert('Cannot delete', 'This category still has transactions. Reassign or delete them first.');
-            return;
-          }
-          onClose();
-        },
-      },
-    ]);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      `Delete "${editing.name}"?`,
+      `This category will be permanently removed. This action cannot be undone.\n\n${
+        editing.transactionCount > 0
+          ? `⚠️ This category has ${editing.transactionCount} transaction${editing.transactionCount === 1 ? '' : 's'} — you must reassign or delete them first.`
+          : 'No transactions use this category, so it is safe to delete.'
+      }`,
+      editing.transactionCount > 0
+        ? [{ text: 'OK', style: 'cancel' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Delete permanently',
+              style: 'destructive',
+              onPress: async () => {
+                const r = await categories.deleteIfUnused(editing.id);
+                if (!r.ok) {
+                  Alert.alert('Cannot delete', 'This category still has transactions. Reassign or delete them first.');
+                  return;
+                }
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                onClose();
+              },
+            },
+          ],
+    );
   };
 
   if (!state) return null;
