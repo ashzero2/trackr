@@ -4,7 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'reac
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { ScreenScaffold } from '@/components/screen-scaffold';
-import { TransactionRow } from '@/components/transaction-row';
+import { SwipeableTransactionRow } from '@/components/swipeable-transaction-row';
+import { UndoSnackbar } from '@/components/undo-snackbar';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useRepositories } from '@/contexts/database-context';
@@ -33,6 +34,10 @@ export default function TripDetailScreen() {
   const [rows, setRows] = useState<TransactionWithCategory[]>([]);
   const [spentToday, setSpentToday] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    transaction: TransactionWithCategory;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!valid || !tripId) {
@@ -89,6 +94,32 @@ export default function TripDetailScreen() {
 
   const overspent =
     dailyBudget !== undefined && dailyBudget > 0 && spentToday > dailyBudget ? spentToday - dailyBudget : 0;
+
+  const onDelete = useCallback(
+    (id: string) => {
+      const txn = rows.find((r) => r.id === id);
+      if (!txn) return;
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      setPendingDelete({ id, transaction: txn });
+    },
+    [rows],
+  );
+
+  const commitDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    await transactions.delete(pendingDelete.id);
+    setPendingDelete(null);
+  }, [pendingDelete, transactions]);
+
+  const undoDelete = useCallback(() => {
+    if (!pendingDelete) return;
+    setRows((prev) => {
+      const restored = [...prev, pendingDelete.transaction];
+      restored.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+      return restored;
+    });
+    setPendingDelete(null);
+  }, [pendingDelete]);
 
   if (!valid) {
     return (
@@ -182,21 +213,25 @@ export default function TripDetailScreen() {
           </Text>
         ) : (
           rows.map((t) => (
-            <TransactionRow
+            <SwipeableTransactionRow
               key={t.id}
               dense
               transaction={t}
               subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
-              onPress={() =>
-                router.push({
-                  pathname: '/add-transaction',
-                  params: { id: t.id },
-                } as unknown as Href)
-              }
+              onDelete={onDelete}
             />
           ))
         )}
       </View>
+
+      {pendingDelete ? (
+        <UndoSnackbar
+          id={pendingDelete.id}
+          message="Transaction deleted"
+          onExpire={commitDelete}
+          onUndo={undoDelete}
+        />
+      ) : null}
     </ScreenScaffold>
   );
 }
