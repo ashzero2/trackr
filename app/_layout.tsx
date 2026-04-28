@@ -9,7 +9,7 @@ import 'react-native-reanimated';
 import { AppLockScreen } from '@/components/app-lock-screen';
 import { NavigationThemeRoot } from '@/components/navigation-theme-root';
 import { AppLockProvider, useAppLock } from '@/contexts/app-lock-context';
-import { ColorSchemeProvider } from '@/contexts/color-scheme-context';
+import { ColorSchemeProvider, useAppColors } from '@/contexts/color-scheme-context';
 import { DatabaseProvider, useDatabase } from '@/contexts/database-context';
 import { UserProfileProvider } from '@/contexts/user-profile-context';
 import { useAppFonts } from '@/hooks/use-app-fonts';
@@ -90,6 +90,51 @@ function AppLockGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Stack navigator with theme-aware contentStyle to prevent white flash on pop transitions. */
+function ThemedStack() {
+  const { colors } = useAppColors();
+
+  return (
+    <Stack
+      initialRouteName="index"
+      screenOptions={{
+        animation: 'slide_from_right',
+        animationDuration: 250,
+        contentStyle: { backgroundColor: colors.surface },
+      } as NativeStackNavigationOptions}>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="add-transaction"
+        options={{
+          presentation: 'modal',
+          title: 'Add transaction',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.surface },
+        } as NativeStackNavigationOptions}
+      />
+      <Stack.Screen name="manage-categories" options={{ title: 'Categories', contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="manage-budgets" options={{ title: 'Budgets', contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false, contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="trip-detail" options={{ title: 'Trip', contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false, contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen
+        name="add-recurring"
+        options={{
+          presentation: 'modal',
+          title: 'New recurring rule',
+          animation: 'slide_from_bottom',
+          contentStyle: { backgroundColor: colors.surface },
+        } as NativeStackNavigationOptions}
+      />
+      <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false, contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="setup-app-lock" options={{ title: 'App Lock', headerShown: true, contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+      <Stack.Screen name="exbot-settings" options={{ title: 'Exbot Settings', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: colors.surface } } as NativeStackNavigationOptions} />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
 
@@ -114,40 +159,7 @@ export default function RootLayout() {
               <BudgetAlertWatcher />
               <RecurrenceAppStateListener />
               <NavigationThemeRoot>
-                <Stack
-                  initialRouteName="index"
-                  screenOptions={{
-                    animation: 'slide_from_right',
-                    animationDuration: 250,
-                  } as NativeStackNavigationOptions}>
-                  <Stack.Screen name="index" options={{ headerShown: false }} />
-                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen
-                    name="add-transaction"
-                    options={{
-                      presentation: 'modal',
-                      title: 'Add transaction',
-                      animation: 'slide_from_bottom',
-                    } as NativeStackNavigationOptions}
-                  />
-                  <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
-                  <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
-                  <Stack.Screen name="manage-trips" options={{ title: 'Trips', headerShown: false }} />
-                  <Stack.Screen name="trip-detail" options={{ title: 'Trip' }} />
-                  <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false }} />
-                  <Stack.Screen
-                    name="add-recurring"
-                    options={{
-                      presentation: 'modal',
-                      title: 'New recurring rule',
-                      animation: 'slide_from_bottom',
-                    } as NativeStackNavigationOptions}
-                  />
-                  <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
-                  <Stack.Screen name="setup-app-lock" options={{ title: 'App Lock', headerShown: true }} />
-                  <Stack.Screen name="exbot-settings" options={{ title: 'Exbot Settings', headerShown: false, animation: 'fade' } as NativeStackNavigationOptions} />
-                </Stack>
+                <ThemedStack />
               </NavigationThemeRoot>
             </DatabaseProvider>
           </AppLockGate>
