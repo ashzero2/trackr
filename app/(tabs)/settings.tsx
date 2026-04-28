@@ -144,30 +144,41 @@ export default function SettingsScreen() {
     }
   };
 
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   const onClear = () => {
     if (!transactions) return;
     Alert.alert(
       'Clear all transactions?',
-      'This removes every transaction. Categories and budgets stay in place.',
+      'This removes every transaction permanently. Categories and budgets stay in place. You will need to type DELETE to confirm.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear',
+          text: 'Continue',
           style: 'destructive',
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await transactions.deleteAll();
-              Alert.alert('Done', 'All transactions were deleted.');
-            } catch (e) {
-              Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
-            } finally {
-              setBusy(false);
-            }
+          onPress: () => {
+            setDeleteConfirmText('');
+            setDeleteModalOpen(true);
           },
         },
       ],
     );
+  };
+
+  const onConfirmDelete = async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') return;
+    setBusy(true);
+    setDeleteModalOpen(false);
+    try {
+      await transactions!.deleteAll();
+      Alert.alert('Done', 'All transactions were deleted.');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setBusy(false);
+      setDeleteConfirmText('');
+    }
   };
 
   if (error) {
@@ -456,6 +467,63 @@ export default function SettingsScreen() {
           />
         </Card>
       </Section>
+
+      {/* ── Delete confirmation modal ────────────────────────────── */}
+      <Modal visible={deleteModalOpen} transparent animationType="fade" accessibilityViewIsModal>
+        <Pressable style={styles.nameBackdrop} onPress={() => setDeleteModalOpen(false)}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[styles.nameSheet, { backgroundColor: colors.surfaceContainerLowest }]}>
+            <Text style={[styles.nameSheetTitle, { color: colors.error, fontFamily: headlineFont }]}>
+              Confirm deletion
+            </Text>
+            <Text style={{ fontFamily: bodyFont, color: colors.onSurfaceVariant, lineHeight: 20 }}>
+              This will permanently delete all transactions. Categories and budgets will remain.{'\n\n'}
+              Type <Text style={{ fontWeight: '800', color: colors.error }}>DELETE</Text> below to confirm.
+            </Text>
+            <TextInput
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="Type DELETE to confirm"
+              placeholderTextColor={colors.onSurfaceVariant}
+              autoCapitalize="characters"
+              style={[
+                styles.nameInput,
+                { color: colors.onSurface, backgroundColor: colors.surfaceContainerLow, fontFamily: bodyFont },
+              ]}
+            />
+            <View style={styles.nameActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                onPress={() => { setDeleteModalOpen(false); setDeleteConfirmText(''); }}
+                style={[styles.nameGhost, { borderColor: colors.outlineVariant }]}>
+                <Text style={{ color: colors.onSurface, fontFamily: labelFont }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Confirm delete all data"
+                onPress={() => void onConfirmDelete()}
+                disabled={deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+                style={[
+                  styles.nameSave,
+                  {
+                    backgroundColor: deleteConfirmText.trim().toUpperCase() === 'DELETE' ? colors.error : colors.surfaceContainerHigh,
+                  },
+                ]}>
+                <Text
+                  style={{
+                    color: deleteConfirmText.trim().toUpperCase() === 'DELETE' ? colors.onPrimary : colors.onSurfaceVariant,
+                    fontFamily: labelFont,
+                    fontWeight: '700',
+                  }}>
+                  Delete all
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScreenScaffold>
   );
 }
