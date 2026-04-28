@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { THEME_METADATA, THEME_NAMES } from '@/constants/design-tokens';
+import { THEME_METADATA, THEME_NAMES, getSemanticColors } from '@/constants/design-tokens';
 
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
@@ -829,6 +829,14 @@ function ThemeRow() {
 
 function ThemeColorPicker() {
   const { colors, scheme, themeName, setThemeName } = useAppColors();
+  const [previewName, setPreviewName] = useState<import('@/constants/design-tokens').ThemeName | null>(null);
+
+  const previewTheme = previewName ?? themeName;
+  const previewColors = useMemo(
+    () => getSemanticColors(scheme, previewTheme),
+    [scheme, previewTheme],
+  );
+
   return (
     <View style={styles.themeBlock}>
       <View style={styles.themeBlockHeader}>
@@ -837,6 +845,19 @@ function ThemeColorPicker() {
         </View>
         <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>App theme</Text>
       </View>
+
+      {/* Live preview strip */}
+      <View style={[styles.themePreviewStrip, { backgroundColor: previewColors.surfaceContainerLow }]}>
+        <View style={[styles.themePreviewDot, { backgroundColor: previewColors.primary }]} />
+        <Text style={{ color: previewColors.onSurface, fontFamily: bodyFont, fontSize: 13, fontWeight: '600', flex: 1 }}>
+          {THEME_METADATA[previewTheme].label}
+        </Text>
+        <Text style={{ color: previewColors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12 }}>
+          Aa
+        </Text>
+        <View style={[styles.themePreviewDot, { backgroundColor: previewColors.tertiary }]} />
+      </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -851,7 +872,9 @@ function ThemeColorPicker() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${meta.label} theme`}
-              onPress={() => void setThemeName(name)}
+              onPress={() => { setPreviewName(null); void setThemeName(name); }}
+              onPressIn={() => setPreviewName(name)}
+              onPressOut={() => setPreviewName(null)}
               style={styles.swatchItem}>
               <View
                 style={[
@@ -1008,6 +1031,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  themePreviewStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  themePreviewDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
