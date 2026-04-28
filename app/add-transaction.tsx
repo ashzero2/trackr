@@ -18,6 +18,7 @@ import { lightImpact } from '@/lib/haptics';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { CurrencyPickerField } from '@/components/currency-picker-field';
 import { NumberPad } from '@/components/number-pad';
+import { formatPreviewAmount } from '@/lib/format-preview';
 import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
 
 const EXPENSE_COLOR = '#F06B6B';
@@ -261,7 +262,7 @@ export default function AddTransactionScreen() {
         <View style={s.amountRow}>
           <Text style={[s.amountSymbol, { color: colors.onSurfaceVariant, fontFamily: displayFont }]}>{sym}</Text>
           <Text style={[s.amountText, { color: amountText ? colors.onSurface : colors.onSurfaceVariant, fontFamily: displayFont }]}>
-            {amountText || '0'}
+            {formatPreviewAmount(amountText)}
           </Text>
           <View style={[s.amountCursor, { backgroundColor: accentColor }]} />
         </View>
