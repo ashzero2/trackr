@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import type { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
@@ -113,13 +114,22 @@ export default function RootLayout() {
               <BudgetAlertWatcher />
               <RecurrenceAppStateListener />
               <NavigationThemeRoot>
-                <Stack initialRouteName="index">
+                <Stack
+                  initialRouteName="index"
+                  screenOptions={{
+                    animation: 'slide_from_right',
+                    animationDuration: 250,
+                  } as NativeStackNavigationOptions}>
                   <Stack.Screen name="index" options={{ headerShown: false }} />
                   <Stack.Screen name="onboarding" options={{ headerShown: false }} />
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen
                     name="add-transaction"
-                    options={{ presentation: 'modal', title: 'Add transaction' }}
+                    options={{
+                      presentation: 'modal',
+                      title: 'Add transaction',
+                      animation: 'slide_from_bottom',
+                    } as NativeStackNavigationOptions}
                   />
                   <Stack.Screen name="manage-categories" options={{ title: 'Categories' }} />
                   <Stack.Screen name="manage-budgets" options={{ title: 'Budgets' }} />
@@ -128,10 +138,15 @@ export default function RootLayout() {
                   <Stack.Screen name="manage-recurring" options={{ title: 'Recurring', headerShown: false }} />
                   <Stack.Screen
                     name="add-recurring"
-                    options={{ presentation: 'modal', title: 'New recurring rule' }}
+                    options={{
+                      presentation: 'modal',
+                      title: 'New recurring rule',
+                      animation: 'slide_from_bottom',
+                    } as NativeStackNavigationOptions}
                   />
                   <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
                   <Stack.Screen name="setup-app-lock" options={{ title: 'App Lock', headerShown: true }} />
+                  <Stack.Screen name="exbot-settings" options={{ title: 'Exbot Settings', headerShown: false, animation: 'fade' } as NativeStackNavigationOptions} />
                 </Stack>
               </NavigationThemeRoot>
             </DatabaseProvider>
