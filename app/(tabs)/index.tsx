@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
+import { SkeletonCard, SkeletonTransactionRow } from '@/components/skeleton';
 import { UndoSnackbar } from '@/components/undo-snackbar';
 
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
@@ -182,7 +183,12 @@ export default function DashboardScreen() {
     return (
       <ScreenScaffold>
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <SkeletonCard height={160} />
+          <View style={{ gap: 4, marginTop: 16 }}>
+            <SkeletonTransactionRow />
+            <SkeletonTransactionRow />
+            <SkeletonTransactionRow />
+          </View>
         </View>
       </ScreenScaffold>
     );

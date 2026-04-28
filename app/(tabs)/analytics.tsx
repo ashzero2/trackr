@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
+import { SkeletonCard } from '@/components/skeleton';
 import { SpendingTrendChart } from '@/components/spending-trend-chart';
 import { ScreenScaffold } from '@/components/screen-scaffold';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
@@ -143,7 +144,9 @@ export default function AnalyticsScreen() {
     return (
       <ScreenScaffold>
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <SkeletonCard height={48} />
+          <SkeletonCard height={140} />
+          <SkeletonCard height={200} />
         </View>
       </ScreenScaffold>
     );
