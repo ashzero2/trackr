@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
-    minHeight: 34,
+    minHeight: MIN_TOUCH_TARGET,
     justifyContent: 'center',
   },
   monthScroll: {

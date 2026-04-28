@@ -278,8 +278,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 999,
     minHeight: MIN_TOUCH_TARGET,
     justifyContent: 'center',
+    borderRadius: 999,
   },
 });

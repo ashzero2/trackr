@@ -419,7 +419,7 @@ const s = StyleSheet.create({
 
   // Type toggle
   typeRow: { flexDirection: 'row', marginHorizontal: 16, borderRadius: 999, padding: 3 },
-  typeChip: { flex: 1, paddingVertical: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  typeChip: { flex: 1, paddingVertical: 10, borderRadius: 999, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH_TARGET },
   typeChipText: { fontSize: 14, fontWeight: '600' },
 
   // Amount
