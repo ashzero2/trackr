@@ -63,7 +63,27 @@ function randomLoadingMessage(): string {
   return AI_LOADING_MESSAGES[Math.floor(Math.random() * AI_LOADING_MESSAGES.length)]!;
 }
 
-type ChatLine = { id: string; role: 'user' | 'assistant'; text: string };
+type ChatLineRole = 'user' | 'assistant' | 'error';
+type ChatLine = { id: string; role: ChatLineRole; text: string; errorKind?: ErrorKind; retryText?: string };
+
+type ErrorKind = 'network' | 'auth' | 'quota' | 'generic';
+
+function classifyError(msg: string): ErrorKind {
+  const lower = msg.toLowerCase();
+  if (/network|fetch|timeout|enetunreach|econnrefused|dns/i.test(lower)) return 'network';
+  if (/api.key|invalid.*key|authenticate|unauthorized|403|401/i.test(lower)) return 'auth';
+  if (/resource\s*exhausted|quota|exceeded|429|rate.limit/i.test(lower)) return 'quota';
+  return 'generic';
+}
+
+function errorUserMessage(kind: ErrorKind, raw: string): string {
+  switch (kind) {
+    case 'network': return 'Could not reach the AI service. Check your internet connection and try again.';
+    case 'auth': return 'Your API key appears to be invalid or missing. Please update it in Settings → Exbot (Gemini).';
+    case 'quota': return 'API rate limit reached. Wait a moment and try again, or switch to a different model in Settings → Exbot (Gemini).';
+    default: return raw || 'Something went wrong. Please try again.';
+  }
+}
 
 function buildSystemInstruction(currencyCode: string): string {
   const today = new Date().toISOString().slice(0, 10);
@@ -185,11 +205,12 @@ export default function AiScreen() {
         repos: r,
       });
       if (!result.ok) {
-        let errMsg = result.error;
-        if (/resource\s*exhausted|quota|exceeded|429/i.test(errMsg)) {
-          errMsg += `\n\nIf curl works with gemini-flash-latest, set that as Model id in Settings → Exbot (Gemini) and save.`;
-        }
-        setLines((prev) => [...prev, { id: newId(), role: 'assistant', text: `Error: ${errMsg}` }]);
+        const kind = classifyError(result.error);
+        const userMsg = errorUserMessage(kind, result.error);
+        setLines((prev) => [
+          ...prev,
+          { id: newId(), role: 'error' as ChatLineRole, text: userMsg, errorKind: kind, retryText: text },
+        ]);
         return;
       }
       setApiContents(result.contents);
@@ -198,9 +219,12 @@ export default function AiScreen() {
         setPendingRows(result.proposedRows);
       }
     } catch (e) {
+      const raw = e instanceof Error ? e.message : 'Something went wrong.';
+      const kind = classifyError(raw);
+      const userMsg = errorUserMessage(kind, raw);
       setLines((prev) => [
         ...prev,
-        { id: newId(), role: 'assistant', text: e instanceof Error ? e.message : 'Something went wrong.' },
+        { id: newId(), role: 'error' as ChatLineRole, text: userMsg, errorKind: kind, retryText: text },
       ]);
     } finally {
       setSending(false);
@@ -416,33 +440,83 @@ export default function AiScreen() {
               </View>
             </View>
           }
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.bubbleWrap,
-              item.role === 'user' ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
-            ]}>
+        renderItem={({ item }) => {
+          if (item.role === 'error') {
+            return (
+              <View style={[styles.bubbleWrap, styles.bubbleWrapAssistant]}>
+                <View style={[styles.bubble, styles.errorBubble, { backgroundColor: colors.errorContainer }]}>
+                  <View style={styles.errorIconRow}>
+                    <MaterialIcons
+                      name={item.errorKind === 'network' ? 'wifi-off' : item.errorKind === 'auth' ? 'key-off' : item.errorKind === 'quota' ? 'timer-off' : 'error-outline'}
+                      size={18}
+                      color={colors.onErrorContainer}
+                    />
+                    <Text style={[styles.errorKindLabel, { color: colors.onErrorContainer, fontFamily: labelFont }]}>
+                      {item.errorKind === 'network' ? 'Network error' : item.errorKind === 'auth' ? 'API key issue' : item.errorKind === 'quota' ? 'Rate limited' : 'Error'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.bubbleText, { color: colors.onErrorContainer, fontFamily: bodyFont }]}>
+                    {item.text}
+                  </Text>
+                  <View style={styles.errorActions}>
+                    {item.retryText ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Retry message"
+                        onPress={() => {
+                          // Remove this error line and retry
+                          setLines((prev) => prev.filter((l) => l.id !== item.id));
+                          void sendMessage(item.retryText!);
+                        }}
+                        style={[styles.errorBtn, { backgroundColor: colors.error }]}>
+                        <MaterialIcons name="refresh" size={16} color={colors.onError} />
+                        <Text style={[styles.errorBtnText, { color: colors.onError, fontFamily: labelFont }]}>Retry</Text>
+                      </Pressable>
+                    ) : null}
+                    {(item.errorKind === 'auth' || item.errorKind === 'quota') ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Open Exbot settings"
+                        onPress={() => router.push('/exbot-settings' as Href)}
+                        style={[styles.errorBtn, { backgroundColor: colors.surfaceContainerHigh }]}>
+                        <MaterialIcons name="settings" size={16} color={colors.onSurface} />
+                        <Text style={[styles.errorBtnText, { color: colors.onSurface, fontFamily: labelFont }]}>Settings</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            );
+          }
+
+          return (
             <View
               style={[
-                styles.bubble,
-                {
-                  backgroundColor:
-                    item.role === 'user' ? colors.primaryContainer : colors.surfaceContainerLow,
-                },
+                styles.bubbleWrap,
+                item.role === 'user' ? styles.bubbleWrapUser : styles.bubbleWrapAssistant,
               ]}>
-              <Text
+              <View
                 style={[
-                  styles.bubbleText,
+                  styles.bubble,
                   {
-                    color: item.role === 'user' ? colors.onPrimaryContainer : colors.onSurface,
-                    fontFamily: bodyFont,
+                    backgroundColor:
+                      item.role === 'user' ? colors.primaryContainer : colors.surfaceContainerLow,
                   },
                 ]}>
-                {item.text}
-              </Text>
+                <Text
+                  style={[
+                    styles.bubbleText,
+                    {
+                      color: item.role === 'user' ? colors.onPrimaryContainer : colors.onSurface,
+                      fontFamily: bodyFont,
+                    },
+                  ]}>
+                  {item.text}
+                </Text>
+              </View>
             </View>
-          </View>
-        )}
+          );
+        }}
         />
       </View>
 
@@ -672,5 +746,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+  },
+  errorBubble: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  errorIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  errorKindLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  errorActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  errorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  errorBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
