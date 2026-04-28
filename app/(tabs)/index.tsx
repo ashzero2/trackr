@@ -16,7 +16,7 @@ import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
-import { computeMonthInsight, computeVelocityInsight } from '@/lib/analytics-buckets';
+import { computeMonthInsight, computeRotatingInsight, computeVelocityInsight } from '@/lib/analytics-buckets';
 import { contextualGreeting } from '@/lib/greetings';
 import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
@@ -148,9 +148,15 @@ export default function DashboardScreen() {
     return { name, left, pct, spent, limit };
   }, [budgetRows, byCat]);
 
-  const insightText = useMemo(
-    () => computeMonthInsight(byCat, summary?.totalExpenseCents ?? 0),
-    [summary, byCat],
+  const insight = useMemo(
+    () => computeRotatingInsight({
+      byCat,
+      totalExpenseCents: summary?.totalExpenseCents ?? 0,
+      totalIncomeCents: summary?.totalIncomeCents ?? 0,
+      budgetLimitCents: budgetRows.reduce((sum, b) => sum + b.limitCents, 0),
+      prevMonthExpenseCents: prevSummary?.totalExpenseCents ?? 0,
+    }),
+    [summary, prevSummary, byCat, budgetRows],
   );
 
   const velocity = useMemo(() => {
@@ -300,10 +306,10 @@ export default function DashboardScreen() {
             <MaterialIcons name="lightbulb-outline" size={22} color={colors.onTertiary} />
           </View>
           <Text style={[styles.bentoKicker, { color: colors.insightCardKicker, fontFamily: bodyFont }]}>
-            Smart insight
+            {insight.label}
           </Text>
           <Text style={[styles.insightBody, { color: colors.insightCardBody, fontFamily: bodyFont }]}>
-            {insightText}
+            {insight.body}
           </Text>
         </View>
       </View>
