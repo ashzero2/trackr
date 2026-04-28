@@ -2,8 +2,9 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { headlineFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
@@ -28,7 +29,7 @@ function initialsFromName(name: string): string {
 }
 
 export function AppHeader({ title, right }: AppHeaderProps) {
-  const { colors } = useAppColors();
+  const { colors, scheme, setThemePreference } = useAppColors();
   const { displayName, petAvatarUrl } = useUserProfile();
   const titleColor = colors.primary;
   const [avatarFailed, setAvatarFailed] = useState(false);
@@ -73,7 +74,21 @@ export function AppHeader({ title, right }: AppHeaderProps) {
             {displayTitle}
           </Text>
         </View>
-        {right ? <View style={styles.rightSlot}>{right}</View> : null}
+        <View style={styles.rightSlot}>
+          <Pressable
+            onPress={() => void setThemePreference(scheme === 'dark' ? 'light' : 'dark')}
+            accessibilityRole="button"
+            accessibilityLabel={scheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            hitSlop={6}
+            style={styles.schemeToggle}>
+            <MaterialIcons
+              name={scheme === 'dark' ? 'light-mode' : 'dark-mode'}
+              size={20}
+              color={colors.onSurfaceVariant}
+            />
+          </Pressable>
+          {right ?? null}
+        </View>
       </View>
       <TravelTrackingBanner />
     </View>
@@ -103,8 +118,15 @@ const styles = StyleSheet.create({
   rightSlot: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     flexShrink: 0,
+  },
+  schemeToggle: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: MIN_TOUCH_TARGET / 2,
   },
   avatar: {
     width: 40,
