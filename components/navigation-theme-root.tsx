@@ -6,6 +6,7 @@ import {
 } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo } from 'react';
+import { View } from 'react-native';
 
 import { useAppColors } from '@/contexts/color-scheme-context';
 
@@ -30,7 +31,9 @@ export function NavigationThemeRoot({ children }: { children: React.ReactNode })
 
   return (
     <ThemeProvider value={navigationTheme}>
-      {children}
+      <View style={{ flex: 1, backgroundColor: colors.surface }}>
+        {children}
+      </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );

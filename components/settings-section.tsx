@@ -1,15 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useState } from 'react';
-import { LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { labelFont } from '@/constants/typography';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
-
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 type SettingsSectionProps = {
   title: string;
@@ -35,12 +31,11 @@ export function SettingsSection({
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const toggle = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((prev) => !prev);
   };
 
   return (
-    <View style={styles.section}>
+    <Animated.View layout={LinearTransition.duration(250)} style={styles.section}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
@@ -61,8 +56,15 @@ export function SettingsSection({
           color={colors.onSurfaceVariant}
         />
       </Pressable>
-      {expanded ? <View style={styles.content}>{children}</View> : null}
-    </View>
+      {expanded ? (
+        <Animated.View
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(150)}
+          style={styles.content}>
+          {children}
+        </Animated.View>
+      ) : null}
+    </Animated.View>
   );
 }
 
