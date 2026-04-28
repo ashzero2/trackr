@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
 import { UndoSnackbar } from '@/components/undo-snackbar';
@@ -20,6 +20,19 @@ import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
 
+function matchesQuery(t: TransactionWithCategory, q: string): boolean {
+  if (!q.trim()) return true;
+  const s = q.toLowerCase();
+  const amountStr = (t.amountCents / 100).toFixed(2);
+  return (
+    t.categoryName.toLowerCase().includes(s) ||
+    (t.note?.toLowerCase().includes(s) ?? false) ||
+    t.paymentMethod.toLowerCase().includes(s) ||
+    amountStr.includes(s) ||
+    amountStr.replace('.', '').startsWith(s.replace('.', ''))
+  );
+}
+
 function utcYearMonth(): { y: number; m: number } {
   const n = new Date();
   return { y: n.getUTCFullYear(), m: n.getUTCMonth() + 1 };
@@ -36,6 +49,8 @@ export default function DashboardScreen() {
   const [recent, setRecent] = useState<TransactionWithCategory[]>([]);
   const [byCat, setByCat] = useState<{ categoryId: string; categoryName: string; spentCents: number }[]>([]);
   const [budgetRows, setBudgetRows] = useState<Budget[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     if (!transactions || !budgets) return;
@@ -148,7 +163,12 @@ export default function DashboardScreen() {
   yest.setDate(yest.getDate() - 1);
   const yesterdayKey = localDayKey(yest);
 
-  const groupedRecent = useMemo(() => groupByLocalDay(recent), [recent]);
+  const filteredRecent = useMemo(
+    () => (query.trim() ? recent.filter((t) => matchesQuery(t, query)) : recent),
+    [recent, query],
+  );
+
+  const groupedRecent = useMemo(() => groupByLocalDay(filteredRecent), [filteredRecent]);
 
   if (error) {
     return (
@@ -173,6 +193,19 @@ export default function DashboardScreen() {
       contentBottomExtra={72}
       refreshing={refreshing}
       onRefresh={() => { void onRefresh(); }}
+      headerRight={
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={searchOpen ? 'Close search' : 'Search recent transactions'}
+          onPress={() => { setSearchOpen((o) => !o); if (searchOpen) setQuery(''); }}
+          style={[styles.searchBtn, { backgroundColor: searchOpen ? colors.primaryContainer : colors.surfaceContainerLow }]}>
+          <MaterialIcons
+            name={searchOpen ? 'close' : 'search'}
+            size={20}
+            color={searchOpen ? colors.onPrimaryContainer : colors.primary}
+          />
+        </Pressable>
+      }
       fab={
         <FabGradient
           accessibilityLabel="Add transaction"
@@ -255,9 +288,27 @@ export default function DashboardScreen() {
         </View>
       </View>
 
+      {searchOpen ? (
+        <TextInput
+          autoFocus
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search transactions…"
+          placeholderTextColor={colors.onSurfaceVariant}
+          style={[
+            styles.searchInput,
+            {
+              color: colors.onSurface,
+              backgroundColor: colors.surfaceContainerLowest,
+              fontFamily: bodyFont,
+            },
+          ]}
+        />
+      ) : null}
+
       <View style={styles.sectionHead}>
         <Text style={[styles.sectionTitle, { color: colors.primary, fontFamily: headlineFont }]}>
-          Recent activity
+          {query.trim() ? 'Search results' : 'Recent activity'}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -425,5 +476,20 @@ const styles = StyleSheet.create({
   },
   emptyBudgetLink: {
     flex: 1,
+  },
+  searchBtn: {
+    width: MIN_TOUCH_TARGET,
+    height: MIN_TOUCH_TARGET,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchInput: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginTop: 12,
+    marginBottom: 4,
   },
 });
