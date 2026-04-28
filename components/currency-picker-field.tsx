@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -16,6 +17,28 @@ import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import type { SemanticColors } from '@/constants/design-tokens';
 import { SUPPORTED_CURRENCIES } from '@/lib/currencies';
 
+const RECENTS_KEY = '@currency_recents';
+const MAX_RECENTS = 5;
+
+async function loadRecentCurrencies(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(RECENTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveRecentCurrency(code: string): Promise<void> {
+  try {
+    const prev = await loadRecentCurrencies();
+    const next = [code, ...prev.filter((c) => c !== code)].slice(0, MAX_RECENTS);
+    await AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  } catch {
+    // Silently ignore storage errors
+  }
+}
+
 type CurrencyPickerFieldProps = {
   value: string;
   onChange: (code: string) => void;
@@ -25,6 +48,16 @@ type CurrencyPickerFieldProps = {
 export function CurrencyPickerField({ value, onChange, colors }: CurrencyPickerFieldProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
+  const [recentCodes, setRecentCodes] = useState<string[]>([]);
+
+  const refreshRecents = useCallback(async () => {
+    const codes = await loadRecentCurrencies();
+    setRecentCodes(codes);
+  }, []);
+
+  useEffect(() => {
+    if (open) void refreshRecents();
+  }, [open, refreshRecents]);
 
   const label = useMemo(() => {
     const row = SUPPORTED_CURRENCIES.find((c) => c.code === value);
@@ -38,6 +71,20 @@ export function CurrencyPickerField({ value, onChange, colors }: CurrencyPickerF
       (c) => c.code.toLowerCase().includes(s) || c.label.toLowerCase().includes(s),
     );
   }, [q]);
+
+  const recentItems = useMemo(() => {
+    if (q.trim()) return []; // Hide recents during search
+    return recentCodes
+      .map((code) => SUPPORTED_CURRENCIES.find((c) => c.code === code))
+      .filter(Boolean) as typeof SUPPORTED_CURRENCIES;
+  }, [recentCodes, q]);
+
+  const handleSelect = useCallback((code: string) => {
+    void saveRecentCurrency(code);
+    onChange(code);
+    setOpen(false);
+    setQ('');
+  }, [onChange]);
 
   return (
     <>
@@ -81,6 +128,40 @@ export function CurrencyPickerField({ value, onChange, colors }: CurrencyPickerF
               },
             ]}
           />
+          {recentItems.length > 0 ? (
+            <View style={styles.recentsSection}>
+              <Text style={[styles.sectionHeader, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                RECENTLY USED
+              </Text>
+              {recentItems.map((item) => {
+                const sel = item.code === value;
+                return (
+                  <Pressable
+                    key={`recent-${item.code}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: sel }}
+                    accessibilityLabel={`Recent: ${item.label}, ${item.code}`}
+                    onPress={() => handleSelect(item.code)}
+                    style={[
+                      styles.row,
+                      { borderBottomColor: colors.outlineVariant },
+                      sel && { backgroundColor: colors.surfaceContainerLow },
+                    ]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <MaterialIcons name="history" size={16} color={colors.onSurfaceVariant} />
+                      <Text style={{ color: colors.onSurface, fontFamily: bodyFont, fontSize: 16 }}>
+                        {item.label}
+                      </Text>
+                    </View>
+                    <Text style={{ color: colors.onSurfaceVariant, fontFamily: labelFont }}>{item.code}</Text>
+                  </Pressable>
+                );
+              })}
+              <Text style={[styles.sectionHeader, { color: colors.onSurfaceVariant, fontFamily: labelFont, marginTop: 8 }]}>
+                ALL CURRENCIES
+              </Text>
+            </View>
+          ) : null}
           <FlatList
             data={filtered}
             keyExtractor={(item) => item.code}
@@ -92,11 +173,7 @@ export function CurrencyPickerField({ value, onChange, colors }: CurrencyPickerF
                   accessibilityRole="button"
                   accessibilityState={{ selected: sel }}
                   accessibilityLabel={`${item.label}, ${item.code}`}
-                  onPress={() => {
-                    onChange(item.code);
-                    setOpen(false);
-                    setQ('');
-                  }}
+                  onPress={() => handleSelect(item.code)}
                   style={[
                     styles.row,
                     { borderBottomColor: colors.outlineVariant },
@@ -155,5 +232,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  recentsSection: {
+    paddingHorizontal: 0,
+  },
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
 });
