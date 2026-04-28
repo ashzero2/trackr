@@ -121,6 +121,7 @@ export default function AiScreen() {
   const [sending, setSending] = useState(false);
   const [loadingQuip, setLoadingQuip] = useState<string | null>(null);
   const [importingFile, setImportingFile] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
   const [pendingRows, setPendingRows] = useState<ParsedImportRow[] | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const listRef = useRef<FlatList<ChatLine>>(null);
@@ -281,7 +282,9 @@ export default function AiScreen() {
       if (pick.canceled || !pick.assets?.[0]) return;
       const asset = pick.assets[0];
       setImportingFile(true);
+      setImportStatus('Reading file…');
       const text = await readDocumentPickerAssetAsText(asset);
+      setImportStatus('Parsing CSV…');
       const heuristic = tryParseBankOrWalletCsv(text);
       if (heuristic.ok) {
         setPendingRows(heuristic.rows);
@@ -290,6 +293,7 @@ export default function AiScreen() {
           `Found ${heuristic.rows.length} row(s) using built-in CSV rules. Review and import from the banner below.`,
         );
         setImportingFile(false);
+        setImportStatus(null);
         return;
       }
       const key = apiKey ?? (await getGeminiApiKey());
@@ -297,8 +301,10 @@ export default function AiScreen() {
       if (!key?.trim()) {
         Alert.alert('Gemini required', 'Add an API key in Settings to map unknown CSV formats.');
         setImportingFile(false);
+        setImportStatus(null);
         return;
       }
+      setImportStatus('Mapping with AI — this may take a moment…');
       const mapped = await mapCsvWithGemini(key, model, text);
       if (!mapped.ok) {
         Alert.alert('Could not import', mapped.error);
@@ -314,6 +320,7 @@ export default function AiScreen() {
       Alert.alert('Import failed', e instanceof Error ? e.message : 'Unknown error');
     } finally {
       setImportingFile(false);
+      setImportStatus(null);
     }
   };
 
@@ -395,6 +402,15 @@ export default function AiScreen() {
           </Text>
           <MaterialIcons name="chevron-right" size={22} color={colors.onSecondaryContainer} />
         </Pressable>
+      ) : null}
+
+      {importStatus ? (
+        <View style={[styles.importProgressBar, { backgroundColor: colors.secondaryContainer }]}>
+          <ActivityIndicator size="small" color={colors.onSecondaryContainer} />
+          <Text style={{ color: colors.onSecondaryContainer, fontFamily: bodyFont, flex: 1, fontSize: 14 }}>
+            {importStatus}
+          </Text>
+        </View>
       ) : null}
 
       {pendingRows && pendingRows.length > 0 ? (
@@ -666,6 +682,15 @@ const styles = StyleSheet.create({
   pendingDismiss: {
     paddingHorizontal: 8,
     paddingVertical: 8,
+  },
+  importProgressBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 16,
   },
   listContent: {
     paddingHorizontal: 20,
