@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { labelFont } from '@/constants/typography';
 import { useAppColors } from '@/contexts/color-scheme-context';
+import { useTabBadges } from '@/hooks/use-tab-badges';
 import { lightImpact } from '@/lib/haptics';
 
 const TAB_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
@@ -16,9 +17,16 @@ const TAB_ICONS: Record<string, keyof typeof MaterialIcons.glyphMap> = {
   settings: 'settings',
 };
 
+// Map route names to badge keys
+const BADGE_ROUTES: Record<string, 'budgetExceeded' | 'recurringDue'> = {
+  index: 'budgetExceeded',    // Dashboard shows budget exceeded badge
+  settings: 'recurringDue',   // Settings shows recurring due badge
+};
+
 export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useAppColors();
+  const badges = useTabBadges();
 
   return (
     <View
@@ -66,11 +74,16 @@ export function AppTabBar({ state, descriptors, navigation }: BottomTabBarProps)
                 styles.tab,
                 isFocused && { backgroundColor: colors.tabBarActiveBg },
               ]}>
-              <MaterialIcons
-                name={iconName}
-                size={24}
-                color={isFocused ? colors.tabBarActiveFg : colors.tabBarInactive}
-              />
+              <View>
+                <MaterialIcons
+                  name={iconName}
+                  size={24}
+                  color={isFocused ? colors.tabBarActiveFg : colors.tabBarInactive}
+                />
+                {BADGE_ROUTES[route.name] && badges[BADGE_ROUTES[route.name]] ? (
+                  <View style={[styles.badge, { backgroundColor: colors.error }]} />
+                ) : null}
+              </View>
               <Text
                 style={[
                   styles.tabLabel,
@@ -122,5 +135,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.2,
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
