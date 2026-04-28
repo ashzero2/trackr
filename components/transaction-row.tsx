@@ -2,10 +2,12 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { useAppColors } from '@/contexts/color-scheme-context';
+import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { formatPaymentMethodLabel } from '@/lib/payment-method';
+import { FxBadge } from '@/components/fx-badge';
 import type { TransactionWithCategory } from '@/types/finance';
 
 type TransactionRowProps = {
@@ -22,6 +24,8 @@ type TransactionRowProps = {
 export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense, rowStyle }: TransactionRowProps) {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
+  const { currencyCode: profileCurrency } = useUserProfile();
+  const isFx = transaction.currencyCode != null && transaction.currencyCode !== profileCurrency;
   const iconName = materialIconNameForCategory(transaction.categoryIconKey);
   const sign = transaction.type === 'expense' ? '-' : '+';
   const amountColor = transaction.type === 'expense' ? colors.onSurface : colors.primary;
@@ -44,10 +48,13 @@ export function TransactionRow({ transaction, subtitle, onPress, onLongPress, de
           {sign}
           {format(transaction.amountCents)}
         </Text>
-        <View style={[styles.chip, { backgroundColor: colors.surfaceContainerHighest }]}>
-          <Text style={[styles.chipText, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-            {formatPaymentMethodLabel(transaction.paymentMethod)}
-          </Text>
+        <View style={styles.chipRow}>
+          <View style={[styles.chip, { backgroundColor: colors.surfaceContainerHighest }]}>
+            <Text style={[styles.chipText, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+              {formatPaymentMethodLabel(transaction.paymentMethod)}
+            </Text>
+          </View>
+          {isFx ? <FxBadge currencyCode={transaction.currencyCode!} colors={colors} /> : null}
         </View>
       </View>
     </>
@@ -117,6 +124,11 @@ const styles = StyleSheet.create({
   },
   right: {
     alignItems: 'flex-end',
+    gap: 4,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
   amount: {
