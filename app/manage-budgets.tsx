@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -177,7 +177,9 @@ export default function ManageBudgetsScreen() {
           <EmptyState
             icon="category"
             title="No expense categories"
-            subtitle="Add categories under Settings → Custom categories first"
+            subtitle="Budget limits are set per category. Create your expense categories first under Settings → Custom categories, then come back to assign spending limits."
+            actionLabel="Add categories"
+            onAction={() => router.push('/manage-categories')}
           />
         }
       />

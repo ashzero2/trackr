@@ -352,7 +352,7 @@ export default function HistoryScreen() {
             <EmptyState
               icon="flight"
               title="No trips this month"
-              subtitle="Trip-linked transactions will appear here"
+              subtitle="Transactions linked to a trip will show up here. Start a trip from Settings → Travel to track spending on your next journey."
             />
           ) : (
             filteredTrips.map((t) => (

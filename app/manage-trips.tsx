@@ -193,7 +193,7 @@ export default function ManageTripsScreen() {
           <EmptyState
             icon="flight-takeoff"
             title="No trips yet"
-            subtitle="Tap New trip to start tracking a journey"
+            subtitle="Trips let you group transactions by journey — perfect for vacations, business travel, or weekend getaways. Each trip tracks its own spending and currency conversions."
             actionLabel="New trip"
             onAction={() => { setNewTripName(''); setCreateModalOpen(true); }}
           />
