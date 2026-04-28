@@ -23,6 +23,10 @@ import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
 const EXPENSE_COLOR = '#F06B6B';
 const INCOME_COLOR = '#4CD964';
 
+/** Maximum transaction amount in the base unit (cents). 9,999,999.99 */
+const MAX_AMOUNT = 9_999_999.99;
+const MAX_AMOUNT_DIGITS = 9; // digits before decimal
+
 function getCurrencySymbol(code: string): string {
   try {
     const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency: code, currencyDisplay: 'narrowSymbol' }).formatToParts(0);
@@ -66,12 +70,40 @@ export default function AddTransactionScreen() {
   const isFx = txnCurrencyCode !== profileCurrency;
 
   // ── Number pad (dismiss keyboard on tap) ──
+  const [amountLimitHit, setAmountLimitHit] = useState(false);
+  const limitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flashAmountLimit = useCallback(() => {
+    setAmountLimitHit(true);
+    if (limitTimerRef.current) clearTimeout(limitTimerRef.current);
+    limitTimerRef.current = setTimeout(() => setAmountLimitHit(false), 1200);
+  }, []);
+
   const onDigit = useCallback((d: string) => {
     Keyboard.dismiss();
-    setAmountText(p => { if (p === '0' && d !== '.') return d; const dot = p.indexOf('.'); if (dot !== -1 && p.length - dot > 2) return p; if (p.length >= 12) return p; return p + d; });
-  }, []);
+    setAmountText(p => {
+      if (p === '0' && d !== '.') return d;
+      const dot = p.indexOf('.');
+      // max 2 decimal places
+      if (dot !== -1 && p.length - dot > 2) return p;
+      const candidate = p + d;
+      const numVal = parseFloat(candidate);
+      // Enforce max amount
+      if (isFinite(numVal) && numVal > MAX_AMOUNT) {
+        flashAmountLimit();
+        return p;
+      }
+      // Enforce max digits before decimal
+      const intPart = dot !== -1 ? p.slice(0, dot) : candidate;
+      if (intPart.length > MAX_AMOUNT_DIGITS) {
+        flashAmountLimit();
+        return p;
+      }
+      return candidate;
+    });
+  }, [flashAmountLimit]);
   const onDecimal = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.includes('.') ? p : (p.length === 0 ? '0.' : p + '.')); }, []);
-  const onBackspace = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.slice(0, -1)); }, []);
+  const onBackspace = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.slice(0, -1)); setAmountLimitHit(false); }, []);
 
   // ── Data loading ──
   useEffect(() => { let a = true; categories.listByType(type).then(c => { if (a) setCatList(c); }); return () => { a = false; }; }, [categories, type]);
@@ -195,6 +227,7 @@ export default function AddTransactionScreen() {
       {/* ── Amount display (centered in available space) ── */}
       <View style={s.amountSection}>
         {error ? <Text style={[s.errorText, { color: colors.error, fontFamily: bodyFont }]}>{error}</Text> : null}
+        {amountLimitHit ? <Text style={[s.errorText, { color: colors.error, fontFamily: bodyFont }]}>Maximum amount is {MAX_AMOUNT.toLocaleString()}</Text> : null}
         <View style={s.amountRow}>
           <Text style={[s.amountSymbol, { color: colors.onSurfaceVariant, fontFamily: displayFont }]}>{sym}</Text>
           <Text style={[s.amountText, { color: amountText ? colors.onSurface : colors.onSurfaceVariant, fontFamily: displayFont }]}>
