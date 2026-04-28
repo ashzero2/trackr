@@ -17,8 +17,10 @@ import { useDatabase } from '@/contexts/database-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { computeMonthInsight, computeVelocityInsight } from '@/lib/analytics-buckets';
+import { contextualGreeting } from '@/lib/greetings';
 import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
+import { useUserProfile } from '@/contexts/user-profile-context';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
 
 function matchesQuery(t: TransactionWithCategory, q: string): boolean {
@@ -42,6 +44,7 @@ function utcYearMonth(): { y: number; m: number } {
 export default function DashboardScreen() {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
+  const { displayName } = useUserProfile();
   const { ready, error, transactions, budgets, dataVersion } = useDatabase();
   const lastSeenVersion = useRef(-1);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,6 +162,16 @@ export default function DashboardScreen() {
     );
   }, [summary, prevSummary]);
 
+  const headerGreeting = useMemo(() => {
+    if (!summary) return undefined; // still loading — let AppHeader use default
+    const budgetTotal = budgetRows.reduce((sum, b) => sum + b.limitCents, 0);
+    return contextualGreeting(displayName, {
+      spentThisMonth: summary.totalExpenseCents,
+      budgetTotalCents: budgetTotal,
+      lastMonthSpent: prevSummary?.totalExpenseCents ?? 0,
+    });
+  }, [summary, prevSummary, budgetRows, displayName]);
+
   const todayKey = localDayKey(new Date());
   const yest = new Date();
   yest.setDate(yest.getDate() - 1);
@@ -199,6 +212,7 @@ export default function DashboardScreen() {
       contentBottomExtra={72}
       refreshing={refreshing}
       onRefresh={() => { void onRefresh(); }}
+      headerTitle={headerGreeting}
       headerRight={
         <Pressable
           accessibilityRole="button"
