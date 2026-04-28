@@ -18,6 +18,7 @@ import { lightImpact, warningHaptic } from '@/lib/haptics';
 import { materialIconNameForCategory } from '@/lib/category-icons';
 import { CurrencyPickerField } from '@/components/currency-picker-field';
 import { NumberPad } from '@/components/number-pad';
+import { ScrollFadeEdges } from '@/components/scroll-fade-edge';
 import { formatPreviewAmount } from '@/lib/format-preview';
 import type { Category, EntryType, PaymentMethod, Trip } from '@/types/finance';
 
@@ -272,19 +273,22 @@ export default function AddTransactionScreen() {
       {/* ── Flex spacer below amount ── */}
       <View style={s.spacer} />
 
-      {/* ── Categories: single-row horizontal scroll ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScrollContent} style={s.catScroll}>
-        {catList.map(item => {
-          const sel = item.id === categoryId;
-          return (
-            <Pressable key={item.id} onPress={() => setCategoryId(item.id)}
-              style={[s.catChip, { backgroundColor: sel ? accentColor : colors.surfaceContainerHigh }]}>
-              <MaterialIcons name={materialIconNameForCategory(item.iconKey)} size={16} color={sel ? '#FFFFFF' : colors.onSurfaceVariant} />
-              <Text style={[s.catLabel, { color: sel ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]} numberOfLines={1}>{item.name}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {/* ── Categories: single-row horizontal scroll with fade edges ── */}
+      <View style={s.catScrollWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScrollContent} style={s.catScroll}>
+          {catList.map(item => {
+            const sel = item.id === categoryId;
+            return (
+              <Pressable key={item.id} onPress={() => setCategoryId(item.id)}
+                style={[s.catChip, { backgroundColor: sel ? accentColor : colors.surfaceContainerHigh }]}>
+                <MaterialIcons name={materialIconNameForCategory(item.iconKey)} size={16} color={sel ? '#FFFFFF' : colors.onSurfaceVariant} />
+                <Text style={[s.catLabel, { color: sel ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]} numberOfLines={1}>{item.name}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <ScrollFadeEdges backgroundColor={colors.surface} height={36} width={20} />
+      </View>
 
       {/* ── Note input (inline) ── */}
       <View style={[s.noteRow, { backgroundColor: colors.surfaceContainerHigh }]}>
@@ -442,7 +446,8 @@ const s = StyleSheet.create({
   spacer: { flex: 1 },
 
   // Categories
-  catScroll: { flexGrow: 0, marginTop: 12 },
+  catScrollWrap: { position: 'relative', marginTop: 12 },
+  catScroll: { flexGrow: 0 },
   catScrollContent: { paddingHorizontal: 16, gap: 8 },
   catChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 36, borderRadius: 999 },
   catLabel: { fontSize: 12, fontWeight: '600' },
