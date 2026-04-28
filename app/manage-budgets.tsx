@@ -32,7 +32,7 @@ const YEAR_OPTIONS = Array.from({ length: 18 }, (_, i) => 2018 + i);
 export default function ManageBudgetsScreen() {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
-  const { categories, budgets } = useRepositories();
+  const { categories, budgets, transactions } = useRepositories();
   const start = utcCalendarMonthNow();
   const [year, setYear] = useState(start.year);
   const [month, setMonth] = useState(start.month);
@@ -40,15 +40,20 @@ export default function ManageBudgetsScreen() {
   const [budgetRows, setBudgetRows] = useState<Budget[]>([]);
   const [yearModal, setYearModal] = useState(false);
   const [edit, setEdit] = useState<EditTarget | null>(null);
+  const [spentByCat, setSpentByCat] = useState<Map<string, number>>(new Map());
 
   const load = useCallback(async () => {
-    const [cats, b] = await Promise.all([
+    const [cats, b, sc] = await Promise.all([
       categories.listByType('expense'),
       budgets.listForMonth(year, month),
+      transactions.spendingByCategoryForMonth(year, month),
     ]);
     setExpenseCats(cats);
     setBudgetRows(b.filter((x) => x.categoryId));
-  }, [categories, budgets, year, month]);
+    const m = new Map<string, number>();
+    for (const s of sc) m.set(s.categoryId, s.spentCents);
+    setSpentByCat(m);
+  }, [categories, budgets, transactions, year, month]);
 
   useFocusEffect(
     useCallback(() => {
@@ -132,9 +137,37 @@ export default function ManageBudgetsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.name, { color: colors.onSurface, fontFamily: bodyFont }]}>{c.name}</Text>
-                <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                  {b ? `Limit ${format(b.limitCents)}` : 'No limit set'}
-                </Text>
+                {b ? (() => {
+                  const spent = spentByCat.get(c.id) ?? 0;
+                  const limit = b.limitCents;
+                  const pct = limit > 0 ? Math.min(1, spent / limit) : 0;
+                  const over = spent > limit;
+                  return (
+                    <>
+                      <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                        {format(spent)} / {format(limit)}
+                        {over
+                          ? ` · Over by ${format(spent - limit)}`
+                          : ` · ${format(limit - spent)} left`}
+                      </Text>
+                      <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              width: `${Math.round(pct * 100)}%`,
+                              backgroundColor: over ? colors.error : colors.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </>
+                  );
+                })() : (
+                  <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                    No limit set · Spent {format(spentByCat.get(c.id) ?? 0)}
+                  </Text>
+                )}
               </View>
               <MaterialIcons name="edit" size={20} color={colors.onPrimaryContainer} />
             </Pressable>
@@ -442,6 +475,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 22,
     paddingVertical: 12,
+    borderRadius: 999,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  progressFill: {
+    height: '100%',
     borderRadius: 999,
   },
 });
