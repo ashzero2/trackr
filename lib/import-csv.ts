@@ -84,19 +84,31 @@ function parseAmountToCents(raw: string): number | null {
   return neg ? -cents : cents;
 }
 
+const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}T/;
+
 function parseDateToIso(raw: string): string | null {
+  if (!raw || !raw.trim()) return null;
+
   const t = Date.parse(raw);
   if (!Number.isNaN(t)) {
-    return new Date(t).toISOString();
+    const iso = new Date(t).toISOString();
+    // Ensure the result is a valid ISO date string (YYYY-MM-DDTHH:mm:ss)
+    if (ISO_DATE_PREFIX.test(iso)) return iso;
   }
+
   const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) {
     const mm = Number(m[1]);
     const dd = Number(m[2]);
     const yy = Number(m[3]);
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yy < 1900 || yy > 2100) return null;
     const d = new Date(Date.UTC(yy, mm - 1, dd, 12, 0, 0));
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
+    if (!Number.isNaN(d.getTime())) {
+      const iso = d.toISOString();
+      if (ISO_DATE_PREFIX.test(iso)) return iso;
+    }
   }
+
   return null;
 }
 

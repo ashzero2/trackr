@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { AppLockScreen } from '@/components/app-lock-screen';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { NavigationThemeRoot } from '@/components/navigation-theme-root';
 import { AppLockProvider, useAppLock } from '@/contexts/app-lock-context';
 import { ColorSchemeProvider, useAppColors } from '@/contexts/color-scheme-context';
@@ -162,23 +163,25 @@ export default function RootLayout() {
   }
 
   return (
-    <ColorSchemeProvider>
-      <ThemedGestureRoot>
-        <UserProfileProvider>
-          <AppLockProvider>
-            <AppLockGate>
-              <DatabaseProvider>
-                <NotificationPermissionRequester />
-                <BudgetAlertWatcher />
-                <RecurrenceAppStateListener />
-                <NavigationThemeRoot>
-                  <AppStack />
-                </NavigationThemeRoot>
-              </DatabaseProvider>
-            </AppLockGate>
-          </AppLockProvider>
-        </UserProfileProvider>
-      </ThemedGestureRoot>
-    </ColorSchemeProvider>
+    <ErrorBoundary>
+      <ColorSchemeProvider>
+        <ThemedGestureRoot>
+          <UserProfileProvider>
+            <AppLockProvider>
+              <AppLockGate>
+                <DatabaseProvider>
+                  <NotificationPermissionRequester />
+                  <BudgetAlertWatcher />
+                  <RecurrenceAppStateListener />
+                  <NavigationThemeRoot>
+                    <AppStack />
+                  </NavigationThemeRoot>
+                </DatabaseProvider>
+              </AppLockGate>
+            </AppLockProvider>
+          </UserProfileProvider>
+        </ThemedGestureRoot>
+      </ColorSchemeProvider>
+    </ErrorBoundary>
   );
 }

@@ -9,6 +9,7 @@
  *  • Respects the active app theme
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as LocalAuthentication from 'expo-local-authentication';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,6 +28,37 @@ import { useUserProfile } from '@/contexts/user-profile-context';
 import { headlineFont, bodyFont } from '@/constants/typography';
 
 const PIN_LENGTH = 6;
+const LOCKOUT_STORAGE_KEY = 'app_lock_lockout';
+
+/** Returns lockout duration in ms based on failed attempt count. */
+function getLockoutDurationMs(failedAttempts: number): number {
+  if (failedAttempts >= 15) return 15 * 60 * 1000; // 15 minutes
+  if (failedAttempts >= 10) return 5 * 60 * 1000;  // 5 minutes
+  if (failedAttempts >= 5) return 30 * 1000;        // 30 seconds
+  return 0;
+}
+
+async function loadLockoutState(): Promise<{ failedAttempts: number; lockedUntil: number | null }> {
+  try {
+    const raw = await AsyncStorage.getItem(LOCKOUT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        failedAttempts: parsed.failedAttempts ?? 0,
+        lockedUntil: parsed.lockedUntil ?? null,
+      };
+    }
+  } catch {}
+  return { failedAttempts: 0, lockedUntil: null };
+}
+
+async function saveLockoutState(failedAttempts: number, lockedUntil: number | null): Promise<void> {
+  await AsyncStorage.setItem(LOCKOUT_STORAGE_KEY, JSON.stringify({ failedAttempts, lockedUntil }));
+}
+
+async function clearLockoutState(): Promise<void> {
+  await AsyncStorage.removeItem(LOCKOUT_STORAGE_KEY);
+}
 
 // ─── Numeric pad layout ───────────────────────────────────────────────────────
 const PAD_ROWS: (number | 'back' | 'bio')[][] = [
@@ -62,8 +94,40 @@ export function AppLockScreen() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(0);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Load lockout state on mount ─────────────────────────────────────
+  useEffect(() => {
+    loadLockoutState().then((state) => {
+      setAttempts(state.failedAttempts);
+      if (state.lockedUntil && state.lockedUntil > Date.now()) {
+        setLockedUntil(state.lockedUntil);
+      }
+    });
+  }, []);
+
+  // ── Countdown timer during lockout ──────────────────────────────────
+  useEffect(() => {
+    if (!lockedUntil) {
+      setCountdown(0);
+      return;
+    }
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+      setCountdown(remaining);
+      if (remaining <= 0) {
+        setLockedUntil(null);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockedUntil]);
+
+  const isLockedOut = lockedUntil !== null && lockedUntil > Date.now();
 
   const showBiometric =
     biometricsEnabled && hasBiometrics && biometricsEnrolled;
@@ -83,21 +147,40 @@ export function AppLockScreen() {
   // ── Submit PIN ──────────────────────────────────────────────────────────
   const submitPin = useCallback(
     async (candidate: string) => {
+      if (isLockedOut) return;
+
       const ok = await unlock(candidate);
-      if (!ok) {
-        setAttempts((a) => a + 1);
+      if (ok) {
+        // Reset lockout on success
+        setAttempts(0);
+        setLockedUntil(null);
+        await clearLockoutState();
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
         setError(true);
         triggerShake();
         setPin('');
         setTimeout(() => setError(false), 1200);
+
+        // Check if we need to lock out
+        const lockoutMs = getLockoutDurationMs(newAttempts);
+        if (lockoutMs > 0) {
+          const until = Date.now() + lockoutMs;
+          setLockedUntil(until);
+          await saveLockoutState(newAttempts, until);
+        } else {
+          await saveLockoutState(newAttempts, null);
+        }
       }
     },
-    [unlock, triggerShake],
+    [unlock, triggerShake, attempts, isLockedOut],
   );
 
   // ── Handle key press ────────────────────────────────────────────────────
   const handleKey = useCallback(
     (key: number | 'back' | 'bio') => {
+      if (isLockedOut) return;
       if (key === 'bio') {
         void unlockWithBiometrics();
         return;
@@ -180,12 +263,16 @@ export function AppLockScreen() {
         })}
       </Animated.View>
 
-      {/* ── Error / attempts text ───────────────────────────────────────── */}
+      {/* ── Error / lockout / attempts text ─────────────────────────────── */}
       <View style={styles.errorRow}>
-        {error ? (
+        {isLockedOut ? (
+          <Text style={[styles.errorText, { color: colors.error, fontFamily: bodyFont }]}>
+            Too many attempts. Try again in {countdown}s
+          </Text>
+        ) : error ? (
           <Text style={[styles.errorText, { color: colors.error, fontFamily: bodyFont }]}>
             {attempts >= 5
-              ? 'Too many attempts. Try again.'
+              ? `Incorrect PIN (${attempts} attempts)`
               : 'Incorrect PIN'}
           </Text>
         ) : null}

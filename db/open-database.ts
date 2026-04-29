@@ -26,6 +26,7 @@ function copyLegacyDatabaseIfNeeded(): void {
 export async function openAndPrepareDatabase(): Promise<SQLiteDatabase> {
   copyLegacyDatabaseIfNeeded();
   const db = await openDatabaseAsync(DB_NAME);
+  await db.execAsync('PRAGMA journal_mode = WAL');
   await runMigrations(db);
   await seedCategories(db);
   return db;

@@ -14,6 +14,9 @@ export type RecurrenceCheckerDeps = {
   onConfirmRequired?: (rule: RecurringTransaction) => void;
 };
 
+/** Mutex to prevent concurrent runs when the app foregrounds rapidly. */
+let _checking = false;
+
 /**
  * Check for recurring rules that are due today or overdue.
  *
@@ -21,8 +24,19 @@ export type RecurrenceCheckerDeps = {
  * - If `autoInsert = false`: calls `onConfirmRequired` so the UI can prompt the user.
  *
  * Should be called once per app foreground event.
+ * Uses a mutex lock to prevent duplicate insertions on rapid foreground events.
  */
 export async function checkAndProcessRecurring(deps: RecurrenceCheckerDeps): Promise<void> {
+  if (_checking) return;
+  _checking = true;
+  try {
+    await _doCheck(deps);
+  } finally {
+    _checking = false;
+  }
+}
+
+async function _doCheck(deps: RecurrenceCheckerDeps): Promise<void> {
   const today = todayIsoDate();
   const dueRules = await deps.recurring.listDue(today);
 
@@ -45,6 +59,7 @@ export async function checkAndProcessRecurring(deps: RecurrenceCheckerDeps): Pro
     }
   }
 }
+
 
 /**
  * Inserts the transaction for the given rule and advances `next_due_at`.

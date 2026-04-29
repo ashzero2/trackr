@@ -94,6 +94,22 @@ CREATE TABLE IF NOT EXISTS recurring_transactions (
 CREATE INDEX IF NOT EXISTS idx_recurring_next_due ON recurring_transactions(next_due_at);
 `;
 
+async function runMigrationStep(
+  db: SQLiteDatabase,
+  targetVersion: number,
+  migrationFn: () => Promise<void>,
+): Promise<void> {
+  await db.execAsync('BEGIN TRANSACTION');
+  try {
+    await migrationFn();
+    await db.execAsync(`PRAGMA user_version = ${targetVersion}`);
+    await db.execAsync('COMMIT');
+  } catch (e) {
+    await db.execAsync('ROLLBACK');
+    throw e;
+  }
+}
+
 export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
@@ -101,38 +117,42 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
   let version = row?.user_version ?? 0;
 
   if (version < 1) {
-    await db.execAsync(MIGRATION_V1);
-    await db.execAsync('PRAGMA user_version = 1');
+    await runMigrationStep(db, 1, async () => {
+      await db.execAsync(MIGRATION_V1);
+    });
     version = 1;
   }
 
   if (version < 2) {
-    await db.execAsync(`UPDATE transactions SET payment_method = 'CARD' WHERE payment_method = 'VISA'`);
-    await db.execAsync('PRAGMA user_version = 2');
+    await runMigrationStep(db, 2, async () => {
+      await db.execAsync(`UPDATE transactions SET payment_method = 'CARD' WHERE payment_method = 'VISA'`);
+    });
     version = 2;
   }
 
   if (version < 3) {
-    await db.execAsync(MIGRATION_V3_CREATE_TRIPS);
-    await db.execAsync(MIGRATION_V3_CREATE_SUMMARIES);
-    await db.execAsync('ALTER TABLE transactions ADD COLUMN trip_id TEXT');
-    await db.execAsync('ALTER TABLE transactions ADD COLUMN currency_code TEXT');
-    await db.execAsync('ALTER TABLE transactions ADD COLUMN amount_base_cents INTEGER');
-    await db.execAsync('ALTER TABLE transactions ADD COLUMN exchange_rate_to_base REAL');
-    await db.execAsync('CREATE INDEX IF NOT EXISTS idx_transactions_trip_id ON transactions(trip_id)');
-    await db.execAsync(
-      'CREATE INDEX IF NOT EXISTS idx_transactions_trip_occurred ON transactions(trip_id, occurred_at)',
-    );
-    await db.execAsync(
-      `UPDATE transactions SET amount_base_cents = amount_cents, exchange_rate_to_base = 1.0 WHERE amount_base_cents IS NULL`,
-    );
-    await db.execAsync('PRAGMA user_version = 3');
+    await runMigrationStep(db, 3, async () => {
+      await db.execAsync(MIGRATION_V3_CREATE_TRIPS);
+      await db.execAsync(MIGRATION_V3_CREATE_SUMMARIES);
+      await db.execAsync('ALTER TABLE transactions ADD COLUMN trip_id TEXT');
+      await db.execAsync('ALTER TABLE transactions ADD COLUMN currency_code TEXT');
+      await db.execAsync('ALTER TABLE transactions ADD COLUMN amount_base_cents INTEGER');
+      await db.execAsync('ALTER TABLE transactions ADD COLUMN exchange_rate_to_base REAL');
+      await db.execAsync('CREATE INDEX IF NOT EXISTS idx_transactions_trip_id ON transactions(trip_id)');
+      await db.execAsync(
+        'CREATE INDEX IF NOT EXISTS idx_transactions_trip_occurred ON transactions(trip_id, occurred_at)',
+      );
+      await db.execAsync(
+        `UPDATE transactions SET amount_base_cents = amount_cents, exchange_rate_to_base = 1.0 WHERE amount_base_cents IS NULL`,
+      );
+    });
     version = 3;
   }
 
   if (version < 4) {
-    await db.execAsync(MIGRATION_V4_RECURRING);
-    await db.execAsync('PRAGMA user_version = 4');
+    await runMigrationStep(db, 4, async () => {
+      await db.execAsync(MIGRATION_V4_RECURRING);
+    });
     version = 4;
   }
 }
