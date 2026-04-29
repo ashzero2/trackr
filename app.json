@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.trackr.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#80c0b0",
@@ -29,7 +29,10 @@
       "./plugins/with-android-gradle-network",
       [
         "./plugins/with-android-window-background",
-        { "light": "#f6fafe", "dark": "#0f172a" }
+        {
+          "light": "#f6fafe",
+          "dark": "#0f172a"
+        }
       ],
       [
         "expo-build-properties",
@@ -62,7 +65,8 @@
           "color": "#80c0b0",
           "sounds": []
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,
