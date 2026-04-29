@@ -115,6 +115,8 @@ export default function AiScreen() {
 
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
+  const apiKeyRef = useRef<string | null>(null);
+  const modelIdRef = useRef<string | null>(null);
   const [apiContents, setApiContents] = useState<GeminiContent[]>([]);
   const [lines, setLines] = useState<ChatLine[]>([]);
   const [input, setInput] = useState('');
@@ -148,8 +150,11 @@ export default function AiScreen() {
 
   const refreshKey = useCallback(async () => {
     const [k, m] = await Promise.all([getGeminiApiKey(), getGeminiModelId()]);
-    setApiKey(k?.trim() ? k : null);
+    const trimmedKey = k?.trim() ? k : null;
+    setApiKey(trimmedKey);
     setModelId(m);
+    apiKeyRef.current = trimmedKey;
+    modelIdRef.current = m;
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -193,7 +198,9 @@ export default function AiScreen() {
       return;
     }
 
-    if (!apiKey || !modelId) {
+    const currentKey = apiKeyRef.current;
+    const currentModel = modelIdRef.current;
+    if (!currentKey || !currentModel) {
       Alert.alert('Gemini API key', `Add your key under Settings → Exbot (Gemini) to use ${EXBOT_NAME}.`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => router.push('/(tabs)/settings' as Href) },
@@ -207,8 +214,8 @@ export default function AiScreen() {
     setSending(true);
     try {
       const result = await runGeminiChatTurn({
-        apiKey,
-        modelId,
+        apiKey: currentKey,
+        modelId: currentModel,
         systemInstruction: buildSystemInstruction(currencyCode),
         priorContents: apiContents,
         userText: text,

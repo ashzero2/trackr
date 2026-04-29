@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, router } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -53,8 +53,17 @@ export default function HistoryScreen() {
   const [yearModal, setYearModal] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Debounce search query (300ms) ───────────────────────────────────
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
+  }, [query]);
 
   const load = useCallback(async () => {
     if (!transactions || !trips) return;
@@ -122,16 +131,16 @@ export default function HistoryScreen() {
   const filtered = useMemo(
     () =>
       rows
-        .filter((t) => matchesQuery(t, query))
+        .filter((t) => matchesQuery(t, debouncedQuery))
         .filter((t) => !categoryFilter || t.categoryId === categoryFilter),
-    [rows, query, categoryFilter],
+    [rows, debouncedQuery, categoryFilter],
   );
 
   const filteredTrips = useMemo(() => {
-    if (!query.trim()) return tripRows;
-    const q = query.toLowerCase();
+    if (!debouncedQuery.trim()) return tripRows;
+    const q = debouncedQuery.toLowerCase();
     return tripRows.filter((t) => t.name.toLowerCase().includes(q));
-  }, [tripRows, query]);
+  }, [tripRows, debouncedQuery]);
 
   const totalExpense = useMemo(
     () => filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amountCents, 0),

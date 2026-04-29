@@ -69,3 +69,34 @@ function formatBudgetBody(spentCents: number, limitCents: number, catName: strin
   const fmt = (c: number) => (c / 100).toFixed(2);
   return `${catName}: ${fmt(spentCents)} spent of ${fmt(limitCents)} limit`;
 }
+
+const ALERT_KEY_PREFIX = '@trackr/alert-';
+
+/**
+ * Remove stale budget alert deduplication keys from past months.
+ * Should be called periodically (e.g., on app start) to prevent
+ * AsyncStorage accumulation over time.
+ */
+export async function cleanupStaleBudgetAlertKeys(): Promise<void> {
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const alertKeys = allKeys.filter((k) => k.startsWith(ALERT_KEY_PREFIX));
+    if (alertKeys.length === 0) return;
+
+    const now = new Date();
+    const currentMonthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    const staleKeys = alertKeys.filter((key) => {
+      // Key format: @trackr/alert-{80|100}-{categoryId}-{YYYY-MM}
+      const monthMatch = key.match(/(\d{4}-\d{2})$/);
+      if (!monthMatch) return true; // malformed — remove
+      return monthMatch[1] !== currentMonthKey;
+    });
+
+    if (staleKeys.length > 0) {
+      await AsyncStorage.multiRemove(staleKeys);
+    }
+  } catch {
+    // Non-critical — silently ignore cleanup failures
+  }
+}

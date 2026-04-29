@@ -13,13 +13,13 @@ import { ColorSchemeProvider, useAppColors } from '@/contexts/color-scheme-conte
 import { DatabaseProvider, useDatabase } from '@/contexts/database-context';
 import { UserProfileProvider } from '@/contexts/user-profile-context';
 import { useAppFonts } from '@/hooks/use-app-fonts';
-import { checkBudgetAlerts } from '@/lib/budget-alert';
+import { checkBudgetAlerts, cleanupStaleBudgetAlertKeys } from '@/lib/budget-alert';
 import { checkAndProcessRecurring } from '@/lib/recurrence-checker';
 import { requestNotificationPermission } from '@/lib/notifications';
 
 SplashScreen.preventAutoHideAsync();
 
-/** Requests notification permission once on first launch. */
+/** Requests notification permission once on first launch and cleans up stale alert keys. */
 function NotificationPermissionRequester() {
   const { ready } = useDatabase();
   const requested = useRef(false);
@@ -28,6 +28,7 @@ function NotificationPermissionRequester() {
     if (!ready || requested.current) return;
     requested.current = true;
     void requestNotificationPermission();
+    void cleanupStaleBudgetAlertKeys();
   }, [ready]);
 
   return null;
