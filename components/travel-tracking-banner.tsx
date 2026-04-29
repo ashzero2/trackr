@@ -26,15 +26,15 @@ export function TravelTrackingBanner() {
     };
   }, [ready, trips, activeTripId]);
 
-  if (!travelModeEnabled) {
+  // Only show banner when travel mode is on AND there's an active trip being tracked.
+  // Don't confuse users with a "choose a trip" prompt on every screen.
+  if (!travelModeEnabled || !activeTripId) {
     return null;
   }
 
-  const message = activeTripId
-    ? tripName
-      ? `Currently tracking: ${tripName}`
-      : 'Currently tracking: …'
-    : 'Travel mode on — choose or create an active trip in Settings.';
+  const message = tripName
+    ? `Currently tracking: ${tripName}`
+    : 'Currently tracking: …';
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.secondaryContainer }]}>
