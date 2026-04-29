@@ -460,6 +460,12 @@ export default function SettingsScreen() {
 
       {/* ── Danger zone ──────────────────────────────────────────── */}
       <SettingsSection title="Danger zone" icon="warning" defaultExpanded={false}>
+        <View style={[styles.dangerBanner, { backgroundColor: colors.errorContainer }]}>
+          <MaterialIcons name="warning" size={20} color={colors.error} />
+          <Text style={[styles.dangerBannerText, { color: colors.onErrorContainer, fontFamily: bodyFont }]}>
+            Actions in this section are irreversible. Deleted data cannot be recovered.
+          </Text>
+        </View>
         <Card>
           <PressableRow
             icon="delete-forever"
@@ -1092,5 +1098,19 @@ const styles = StyleSheet.create({
   secondaryTitle: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  dangerBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  dangerBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600',
   },
 });
