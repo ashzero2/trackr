@@ -19,6 +19,12 @@ type DatePickerFieldProps = {
   label?: string;
   /** Date picker mode. Default "date". */
   mode?: 'date' | 'time' | 'datetime';
+  /** Controlled open state. When provided, the component becomes controlled. */
+  open?: boolean;
+  /** Called when the picker wants to close (for controlled mode). */
+  onOpenChange?: (open: boolean) => void;
+  /** When true, hides the chip trigger (use with controlled open for external triggers). */
+  hideChip?: boolean;
 };
 
 /**
@@ -36,8 +42,20 @@ export function DatePickerField({
   icon = 'event',
   label,
   mode = 'date',
+  open: controlledOpen,
+  onOpenChange,
+  hideChip,
 }: DatePickerFieldProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(v);
+    } else {
+      setInternalOpen(v);
+    }
+  };
   const accent = accentColor ?? colors.primary;
 
   const isToday = (() => {
@@ -54,16 +72,18 @@ export function DatePickerField({
 
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Date: ${displayLabel}. Tap to change.`}
-        onPress={() => setOpen(true)}
-        style={[styles.chip, { backgroundColor: colors.surfaceContainerHigh }]}>
-        <MaterialIcons name={icon} size={16} color={colors.onSurfaceVariant} />
-        <Text style={[styles.chipText, { color: colors.onSurface, fontFamily: labelFont }]}>
-          {displayLabel}
-        </Text>
-      </Pressable>
+      {!hideChip ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Date: ${displayLabel}. Tap to change.`}
+          onPress={() => setOpen(true)}
+          style={[styles.chip, { backgroundColor: colors.surfaceContainerHigh }]}>
+          <MaterialIcons name={icon} size={16} color={colors.onSurfaceVariant} />
+          <Text style={[styles.chipText, { color: colors.onSurface, fontFamily: labelFont }]}>
+            {displayLabel}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {/* Android: native dialog, auto-closes on pick */}
       {open && Platform.OS === 'android' ? (

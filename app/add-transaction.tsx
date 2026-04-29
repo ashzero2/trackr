@@ -345,32 +345,7 @@ export default function AddTransactionScreen() {
         />
       </View>
 
-      {/* ── Date + Payment method row ── */}
-      <View style={s.metaRow}>
-        <DatePickerField
-          value={occurredAt}
-          onChange={setOccurredAt}
-          colors={colors}
-          accentColor={accentColor}
-        />
-
-        <View style={s.paymentToggle}>
-          {(['CARD', 'CASH'] as const).map(pm => {
-            const isActive = paymentMethod === pm;
-            return (
-              <Pressable key={pm} onPress={() => setPaymentMethod(pm)}
-                style={[s.paymentChip, { backgroundColor: isActive ? accentColor : 'transparent' }]}>
-                <MaterialIcons name={pm === 'CARD' ? 'credit-card' : 'account-balance-wallet'} size={14} color={isActive ? '#FFFFFF' : colors.onSurfaceVariant} />
-                <Text style={[s.paymentChipText, { color: isActive ? '#FFFFFF' : colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                  {pm === 'CARD' ? 'Card' : 'Cash'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* ── Travel mode options (trip/FX) ── */}
+      {/* ── Travel mode options (trip/FX) — shown above pad when active ── */}
       {travelModeEnabled ? (
         <View style={s.travelRow}>
           <Pressable onPress={() => setTripPickerOpen(true)} style={[s.metaChip, { backgroundColor: colors.surfaceContainerHigh }]}>
@@ -393,15 +368,43 @@ export default function AddTransactionScreen() {
         </View>
       ) : null}
 
-      {/* ── Number pad (fixed height) ── */}
+      {/* ── Number pad with integrated side actions (4-column layout) ── */}
       <NumberPad
         onDigit={onDigit}
         onDecimal={onDecimal}
         onBackspace={onBackspace}
         onOperator={onOperator}
         activeOperator={pendingOp}
+        accentColor={accentColor}
+        sideActions={[
+          {
+            key: 'payment',
+            icon: paymentMethod === 'CARD' ? 'credit-card' : 'account-balance-wallet',
+            label: paymentMethod === 'CARD' ? 'Card' : 'Cash',
+            active: false,
+            onPress: () => setPaymentMethod(paymentMethod === 'CARD' ? 'CASH' : 'CARD'),
+          },
+          {
+            key: 'date',
+            icon: 'event',
+            label: dateLabel,
+            active: !isToday,
+            onPress: () => setShowDate(true),
+          },
+        ]}
         colors={colors}
         style={s.pad}
+      />
+
+      {/* ── Date picker (controlled by side button in number pad) ── */}
+      <DatePickerField
+        value={occurredAt}
+        onChange={setOccurredAt}
+        colors={colors}
+        accentColor={accentColor}
+        open={showDate}
+        onOpenChange={setShowDate}
+        hideChip
       />
 
       {/* ── Save / Delete buttons ── */}

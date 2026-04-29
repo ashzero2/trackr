@@ -26,9 +26,9 @@ import React, {
 import { AppState } from 'react-native';
 
 // ─── Storage keys ────────────────────────────────────────────────────────────
-const KEY_ENABLED = '@trackr/applock/enabled';
-const KEY_PIN_HASH = '@trackr/applock/pin_hash';
-const KEY_BIOMETRICS = '@trackr/applock/biometrics_enabled';
+const KEY_ENABLED = 'trackr.applock.enabled';
+const KEY_PIN_HASH = 'trackr.applock.pin_hash';
+const KEY_BIOMETRICS = 'trackr.applock.biometrics_enabled';
 
 /** Seconds in background before the app re-locks. */
 const BACKGROUND_LOCK_DELAY_MS = 15_000;
