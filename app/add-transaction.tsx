@@ -136,6 +136,43 @@ export default function AddTransactionScreen() {
   const onDecimal = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.includes('.') ? p : (p.length === 0 ? '0.' : p + '.')); }, []);
   const onBackspace = useCallback(() => { Keyboard.dismiss(); setAmountText(p => p.slice(0, -1)); setAmountLimitHit(false); }, []);
 
+  // ── Calculator (+ / −) ──
+  const [pendingOperand, setPendingOperand] = useState<number | null>(null);
+  const [pendingOp, setPendingOp] = useState<'+' | '−' | null>(null);
+
+  const onOperator = useCallback((op: '+' | '−') => {
+    Keyboard.dismiss();
+    const current = parseFloat(amountText.replace(/,/g, ''));
+    if (!isFinite(current) || current <= 0) return;
+
+    if (pendingOperand !== null && pendingOp !== null) {
+      // Chain: compute the running total first
+      const result = pendingOp === '+' ? pendingOperand + current : Math.max(0, pendingOperand - current);
+      setPendingOperand(result);
+    } else {
+      setPendingOperand(current);
+    }
+    setPendingOp(op);
+    setAmountText('');
+  }, [amountText, pendingOperand, pendingOp]);
+
+  /** Resolve any pending calculator operation and return the final amount text. */
+  const resolveCalculator = useCallback((): string => {
+    if (pendingOperand === null || pendingOp === null) return amountText;
+    const current = parseFloat(amountText.replace(/,/g, ''));
+    if (!isFinite(current) || current < 0) {
+      // No second operand — just use the pending operand
+      const result = pendingOperand;
+      setPendingOperand(null);
+      setPendingOp(null);
+      return result.toFixed(2);
+    }
+    const result = pendingOp === '+' ? pendingOperand + current : Math.max(0, pendingOperand - current);
+    setPendingOperand(null);
+    setPendingOp(null);
+    return result.toFixed(2);
+  }, [amountText, pendingOperand, pendingOp]);
+
   // ── Data loading ──
   useEffect(() => { let a = true; categories.listByType(type).then(c => { if (a) setCatList(c); }); return () => { a = false; }; }, [categories, type]);
   useEffect(() => { let a = true; trips.listForTransactionPicker().then(l => { if (a) setTripList(l); }); return () => { a = false; }; }, [trips]);
@@ -185,7 +222,10 @@ export default function AddTransactionScreen() {
 
   const onSave = async () => {
     setError(null);
-    const parsed = parseFloat(amountText.replace(/,/g, ''));
+    // Resolve any pending calculator operation before saving
+    const finalAmountText = resolveCalculator();
+    setAmountText(finalAmountText);
+    const parsed = parseFloat(finalAmountText.replace(/,/g, ''));
     if (!isFinite(parsed) || parsed <= 0) { setError('Enter a valid amount.'); return; }
     if (!categoryId) { setError('Choose a category.'); return; }
     if (isFx) { const r = parseFloat(exchangeRateText); if (!isFinite(r) || r <= 0) { setError('Enter a valid rate.'); return; } }
@@ -344,8 +384,25 @@ export default function AddTransactionScreen() {
         </View>
       ) : null}
 
+      {/* ── Pending calculator operand indicator ── */}
+      {pendingOperand !== null && pendingOp !== null ? (
+        <View style={s.calcIndicator}>
+          <Text style={[s.calcIndicatorText, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+            {pendingOperand.toFixed(2)} {pendingOp}
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── Number pad (fixed height) ── */}
-      <NumberPad onDigit={onDigit} onDecimal={onDecimal} onBackspace={onBackspace} colors={colors} style={s.pad} />
+      <NumberPad
+        onDigit={onDigit}
+        onDecimal={onDecimal}
+        onBackspace={onBackspace}
+        onOperator={onOperator}
+        activeOperator={pendingOp}
+        colors={colors}
+        style={s.pad}
+      />
 
       {/* ── Save / Delete buttons ── */}
       <View style={[s.bottomBar, { paddingBottom: insets.bottom + 4 }]}>
@@ -474,4 +531,8 @@ const s = StyleSheet.create({
   sheetRow: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(0,0,0,0.1)' },
   textInput: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, minHeight: 44 },
   rateLabel: { fontSize: 11, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  // Calculator indicator
+  calcIndicator: { alignItems: 'center', paddingVertical: 4, marginHorizontal: 16 },
+  calcIndicatorText: { fontSize: 14, fontWeight: '600' },
 });
