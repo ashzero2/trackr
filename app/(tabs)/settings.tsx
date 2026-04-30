@@ -27,7 +27,7 @@ import { ScreenScaffold } from '@/components/screen-scaffold';
 import { useAppLock } from '@/contexts/app-lock-context';
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { useDatabase } from '@/contexts/database-context';
-import { useUserProfile } from '@/contexts/user-profile-context';
+import { useUserProfile, type DashboardPrefs, type DashboardPrefValue } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import { transactionsToCsv } from '@/lib/export-csv';
 import { getGeminiApiKey } from '@/lib/ai-settings';
@@ -42,7 +42,7 @@ import {
 
 export default function SettingsScreen() {
   const { colors } = useAppColors();
-  const { displayName, currencyCode, setProfile, travelModeEnabled, activeTripId } = useUserProfile();
+  const { displayName, currencyCode, setProfile, travelModeEnabled, activeTripId, dashboardPrefs } = useUserProfile();
   const { ready, error, db, categories, transactions, trips } = useDatabase();
   const {
     isEnabled: lockEnabled,
@@ -196,6 +196,7 @@ export default function SettingsScreen() {
   // ── Settings search helpers ─────────────────────────────────────────
   const SECTION_DATA: { title: string; keywords: string[] }[] = [
     { title: 'Profile', keywords: ['display name', 'primary currency', 'travel mode'] },
+    { title: 'Dashboard', keywords: ['dashboard', 'velocity', 'budget card', 'insight', 'home screen', 'customize'] },
     { title: 'Appearance', keywords: ['color mode', 'light', 'dark', 'system', 'theme', 'palette'] },
     { title: 'Customization', keywords: ['notifications', 'recurring transactions', 'custom categories', 'custom budgets', 'budget alerts', 'subscriptions', 'bills'] },
     { title: 'Security', keywords: ['app lock', 'pin', 'biometric', 'face id', 'fingerprint', 'lock now'] },
@@ -274,6 +275,40 @@ export default function SettingsScreen() {
               />
             }
           />
+        </Card>
+      </SettingsSection> : null}
+
+      {/* ── Dashboard ────────────────────────────────────────────── */}
+      {matchesSection('Dashboard', settingsQuery) ? <SettingsSection title="Dashboard" icon="dashboard" defaultExpanded={!!settingsQuery.trim()}>
+        <Card>
+          <View style={styles.themeBlock}>
+            <DashboardPrefRow
+              icon="trending-up"
+              title="Spending velocity"
+              subtitle="Monthly projection based on spending pace"
+              autoLabel="After day 3"
+              value={dashboardPrefs.showVelocity}
+              onChange={(v) => void setProfile({ dashboardPrefs: { ...dashboardPrefs, showVelocity: v } })}
+            />
+            <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+            <DashboardPrefRow
+              icon="account-balance-wallet"
+              title="Budget card"
+              subtitle="Active budget progress on dashboard"
+              autoLabel="When configured"
+              value={dashboardPrefs.showBudget}
+              onChange={(v) => void setProfile({ dashboardPrefs: { ...dashboardPrefs, showBudget: v } })}
+            />
+            <View style={[styles.divider, { backgroundColor: colors.outlineVariant }]} />
+            <DashboardPrefRow
+              icon="lightbulb-outline"
+              title="Insights card"
+              subtitle="Rotating spending insights and tips"
+              autoLabel="When ≥5 txns"
+              value={dashboardPrefs.showInsight}
+              onChange={(v) => void setProfile({ dashboardPrefs: { ...dashboardPrefs, showInsight: v } })}
+            />
+          </View>
         </Card>
       </SettingsSection> : null}
 
@@ -943,6 +978,72 @@ function ThemeColorPicker() {
   );
 }
 
+const PREF_OPTIONS: { label: string; value: DashboardPrefValue }[] = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'Always', value: 'on' },
+  { label: 'Never', value: 'off' },
+];
+
+function DashboardPrefRow({
+  icon,
+  title,
+  subtitle,
+  autoLabel,
+  value,
+  onChange,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  title: string;
+  subtitle: string;
+  autoLabel: string;
+  value: DashboardPrefValue;
+  onChange: (v: DashboardPrefValue) => void;
+}) {
+  const { colors } = useAppColors();
+  return (
+    <View style={styles.dashPrefRow}>
+      <View style={styles.dashPrefHeader}>
+        <View style={[styles.rowIcon, { backgroundColor: colors.surfaceContainerLowest }]}>
+          <MaterialIcons name={icon} size={22} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowTitle, { color: colors.onSurface, fontFamily: bodyFont }]}>{title}</Text>
+          <Text style={[styles.rowSub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>{subtitle}</Text>
+        </View>
+      </View>
+      <View style={[styles.themeSegmentFull, { backgroundColor: colors.surfaceContainerHighest }]}>
+        {PREF_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${title}: ${opt.label}${opt.value === 'auto' ? ` (${autoLabel})` : ''}`}
+              onPress={() => onChange(opt.value)}
+              style={[styles.themeChipFull, active && { backgroundColor: colors.primary }]}>
+              <Text
+                style={{
+                  fontFamily: labelFont,
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: active ? colors.onPrimary : colors.onSurfaceVariant,
+                }}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {value === 'auto' ? (
+        <Text style={[styles.dashPrefAutoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+          Auto: {autoLabel}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   loader: {
     paddingVertical: 40,
@@ -1157,5 +1258,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontWeight: '600',
+  },
+  dashPrefRow: {
+    gap: 10,
+  },
+  dashPrefHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  dashPrefAutoHint: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginLeft: 54,
   },
 });

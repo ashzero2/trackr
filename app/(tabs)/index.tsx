@@ -22,7 +22,15 @@ import { contextualGreeting } from '@/lib/greetings';
 import { addUtcMonths, formatDaySectionTitle, localDayKey } from '@/lib/dates';
 import { groupByLocalDay, dayExpenseTotal } from '@/lib/transaction-utils';
 import { useUserProfile } from '@/contexts/user-profile-context';
+import type { DashboardPrefValue } from '@/contexts/user-profile-context';
 import type { Budget, MonthSummary, TransactionWithCategory } from '@/types/finance';
+
+/** Resolve a dashboard pref value given the auto condition. */
+function shouldShow(pref: DashboardPrefValue, autoCondition: boolean): boolean {
+  if (pref === 'on') return true;
+  if (pref === 'off') return false;
+  return autoCondition; // 'auto'
+}
 
 function matchesQuery(t: TransactionWithCategory, q: string): boolean {
   if (!q.trim()) return true;
@@ -45,7 +53,7 @@ function utcYearMonth(): { y: number; m: number } {
 export default function DashboardScreen() {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
-  const { displayName } = useUserProfile();
+  const { displayName, dashboardPrefs } = useUserProfile();
   const { ready, error, transactions, budgets, dataVersion } = useDatabase();
   const lastSeenVersion = useRef(-1);
   const openRowRef = useRef<SwipeableMethods>(null);
@@ -251,7 +259,8 @@ export default function DashboardScreen() {
         vsLastMonthPercent={vsLastMonthPercent}
       />
 
-      {velocity ? (
+      {/* ── Velocity row (smart collapse: auto = show after day 3) ── */}
+      {velocity && shouldShow(dashboardPrefs.showVelocity, new Date().getUTCDate() > 3) ? (
         <View style={[styles.velocityRow, { backgroundColor: colors.surfaceContainerLowest }]}>
           <MaterialIcons name="trending-up" size={16} color={colors.onSurfaceVariant} />
           <Text style={[styles.velocityText, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
@@ -265,60 +274,72 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <View style={styles.bentoRow}>
-        <View style={[styles.bentoCard, { backgroundColor: colors.surfaceContainerLowest }]}>
-          <View style={[styles.bentoIcon, { backgroundColor: colors.secondaryContainer }]}>
-            <MaterialIcons name="account-balance-wallet" size={22} color={colors.onSecondaryContainer} />
-          </View>
-          <Text style={[styles.bentoKicker, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-            Active budget
-          </Text>
-          {primaryBudget ? (
-            <>
-              <Text style={[styles.bentoTitle, { color: colors.onSurface, fontFamily: headlineFont }]}>
-                {format(primaryBudget.left)} left
-              </Text>
-              <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-                {primaryBudget.name} · {format(primaryBudget.spent)} /{' '}
-                {format(primaryBudget.limit)}
-              </Text>
-              <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.round(primaryBudget.pct * 100)}%`, backgroundColor: colors.primary },
-                  ]}
-                />
+      {/* ── Bento row (budget + insight cards, each independently collapsible) ── */}
+      {(() => {
+        const showBudgetCard = shouldShow(dashboardPrefs.showBudget, budgetRows.length > 0);
+        const showInsightCard = shouldShow(dashboardPrefs.showInsight, recent.length >= 5);
+        if (!showBudgetCard && !showInsightCard) return null;
+        return (
+          <View style={styles.bentoRow}>
+            {showBudgetCard ? (
+              <View style={[styles.bentoCard, { backgroundColor: colors.surfaceContainerLowest }]}>
+                <View style={[styles.bentoIcon, { backgroundColor: colors.secondaryContainer }]}>
+                  <MaterialIcons name="account-balance-wallet" size={22} color={colors.onSecondaryContainer} />
+                </View>
+                <Text style={[styles.bentoKicker, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                  Active budget
+                </Text>
+                {primaryBudget ? (
+                  <>
+                    <Text style={[styles.bentoTitle, { color: colors.onSurface, fontFamily: headlineFont }]}>
+                      {format(primaryBudget.left)} left
+                    </Text>
+                    <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                      {primaryBudget.name} · {format(primaryBudget.spent)} /{' '}
+                      {format(primaryBudget.limit)}
+                    </Text>
+                    <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { width: `${Math.round(primaryBudget.pct * 100)}%`, backgroundColor: colors.primary },
+                        ]}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Set up a budget"
+                    onPress={() => router.push('/manage-budgets')}
+                    style={styles.emptyBudgetLink}>
+                    <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
+                      No category budgets yet.
+                    </Text>
+                    <Text style={[styles.bentoHint, { color: colors.primary, fontFamily: bodyFont, fontWeight: '700', marginTop: 4 }]}>
+                      Set up a budget →
+                    </Text>
+                  </Pressable>
+                )}
               </View>
-            </>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Set up a budget"
-              onPress={() => router.push('/manage-budgets')}
-              style={styles.emptyBudgetLink}>
-              <Text style={[styles.bentoHint, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-                No category budgets yet.
-              </Text>
-              <Text style={[styles.bentoHint, { color: colors.primary, fontFamily: bodyFont, fontWeight: '700', marginTop: 4 }]}>
-                Set up a budget →
-              </Text>
-            </Pressable>
-          )}
-        </View>
+            ) : null}
 
-        <View style={[styles.bentoCard, { backgroundColor: colors.tertiaryFixed }]}>
-          <View style={[styles.bentoIcon, { backgroundColor: colors.tertiary }]}>
-            <MaterialIcons name="lightbulb-outline" size={22} color={colors.onTertiary} />
+            {showInsightCard ? (
+              <View style={[styles.bentoCard, { backgroundColor: colors.tertiaryFixed }]}>
+                <View style={[styles.bentoIcon, { backgroundColor: colors.tertiary }]}>
+                  <MaterialIcons name="lightbulb-outline" size={22} color={colors.onTertiary} />
+                </View>
+                <Text style={[styles.bentoKicker, { color: colors.insightCardKicker, fontFamily: bodyFont }]}>
+                  {insight.label}
+                </Text>
+                <Text style={[styles.insightBody, { color: colors.insightCardBody, fontFamily: bodyFont }]}>
+                  {insight.body}
+                </Text>
+              </View>
+            ) : null}
           </View>
-          <Text style={[styles.bentoKicker, { color: colors.insightCardKicker, fontFamily: bodyFont }]}>
-            {insight.label}
-          </Text>
-          <Text style={[styles.insightBody, { color: colors.insightCardBody, fontFamily: bodyFont }]}>
-            {insight.body}
-          </Text>
-        </View>
-      </View>
+        );
+      })()}
 
       {searchOpen ? (
         <TextInput

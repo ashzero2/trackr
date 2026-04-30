@@ -6,6 +6,23 @@ import { fetchRandomPetAvatarUrl } from '@/lib/pet-avatar';
 const PROFILE_KEY = '@trackr/profile';
 const LEGACY_PROFILE_KEY = '@moneymanager/profile';
 
+export type DashboardPrefValue = 'auto' | 'on' | 'off';
+
+export type DashboardPrefs = {
+  /** Show velocity projection row. Auto = after day 3 of month. */
+  showVelocity: DashboardPrefValue;
+  /** Show budget card in bento row. Auto = when ≥1 budget configured. */
+  showBudget: DashboardPrefValue;
+  /** Show insight card in bento row. Auto = when ≥5 recent transactions. */
+  showInsight: DashboardPrefValue;
+};
+
+export const DEFAULT_DASHBOARD_PREFS: DashboardPrefs = {
+  showVelocity: 'auto',
+  showBudget: 'auto',
+  showInsight: 'auto',
+};
+
 export type UserProfile = {
   displayName: string;
   currencyCode: string;
@@ -15,6 +32,8 @@ export type UserProfile = {
   travelModeEnabled: boolean;
   /** Session default for new transactions when trip is ACTIVE */
   activeTripId: string | null;
+  /** Dashboard section visibility preferences */
+  dashboardPrefs: DashboardPrefs;
 };
 
 type UserProfileContextValue = {
@@ -26,9 +45,10 @@ type UserProfileContextValue = {
   petAvatarUrl: string | null;
   travelModeEnabled: boolean;
   activeTripId: string | null;
+  dashboardPrefs: DashboardPrefs;
   setProfile: (
     patch: Partial<
-      Pick<UserProfile, 'displayName' | 'currencyCode' | 'petAvatarUrl' | 'travelModeEnabled' | 'activeTripId'>
+      Pick<UserProfile, 'displayName' | 'currencyCode' | 'petAvatarUrl' | 'travelModeEnabled' | 'activeTripId' | 'dashboardPrefs'>
     >,
   ) => Promise<void>;
   completeOnboarding: (
@@ -45,6 +65,7 @@ const defaultProfile = (): UserProfile => ({
   petAvatarUrl: null,
   travelModeEnabled: false,
   activeTripId: null,
+  dashboardPrefs: { ...DEFAULT_DASHBOARD_PREFS },
 });
 
 const UserProfileContext = createContext<UserProfileContextValue | null>(null);
@@ -56,6 +77,18 @@ function parseProfile(raw: string | null): UserProfile | null {
     if (typeof o.currencyCode !== 'string' || typeof o.onboardingComplete !== 'boolean') {
       return null;
     }
+    // Parse dashboardPrefs with fallback to defaults for missing/invalid fields
+    const rawPrefs = (o as any).dashboardPrefs;
+    const parsePrefVal = (v: unknown): DashboardPrefValue =>
+      v === 'auto' || v === 'on' || v === 'off' ? v : 'auto';
+    const dashboardPrefs: DashboardPrefs = rawPrefs && typeof rawPrefs === 'object'
+      ? {
+          showVelocity: parsePrefVal((rawPrefs as any).showVelocity),
+          showBudget: parsePrefVal((rawPrefs as any).showBudget),
+          showInsight: parsePrefVal((rawPrefs as any).showInsight),
+        }
+      : { ...DEFAULT_DASHBOARD_PREFS };
+
     return {
       displayName: typeof o.displayName === 'string' ? o.displayName : '',
       currencyCode: o.currencyCode,
@@ -63,6 +96,7 @@ function parseProfile(raw: string | null): UserProfile | null {
       petAvatarUrl: typeof o.petAvatarUrl === 'string' && o.petAvatarUrl.length > 0 ? o.petAvatarUrl : null,
       travelModeEnabled: typeof o.travelModeEnabled === 'boolean' ? o.travelModeEnabled : false,
       activeTripId: typeof o.activeTripId === 'string' && o.activeTripId.length > 0 ? o.activeTripId : null,
+      dashboardPrefs,
     };
   } catch {
     return null;
@@ -103,7 +137,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
   const setProfile = useCallback(
     async (
       patch: Partial<
-        Pick<UserProfile, 'displayName' | 'currencyCode' | 'petAvatarUrl' | 'travelModeEnabled' | 'activeTripId'>
+        Pick<UserProfile, 'displayName' | 'currencyCode' | 'petAvatarUrl' | 'travelModeEnabled' | 'activeTripId' | 'dashboardPrefs'>
       >,
     ) => {
       const base = profile ?? defaultProfile();
@@ -115,6 +149,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         petAvatarUrl: patch.petAvatarUrl !== undefined ? patch.petAvatarUrl : base.petAvatarUrl,
         travelModeEnabled: patch.travelModeEnabled !== undefined ? patch.travelModeEnabled : base.travelModeEnabled,
         activeTripId: patch.activeTripId !== undefined ? patch.activeTripId : base.activeTripId,
+        dashboardPrefs: patch.dashboardPrefs !== undefined ? patch.dashboardPrefs : base.dashboardPrefs,
       });
     },
     [profile, persist],
@@ -134,6 +169,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         petAvatarUrl,
         travelModeEnabled: opts?.travelModeEnabled ?? false,
         activeTripId: opts?.activeTripId ?? null,
+        dashboardPrefs: { ...DEFAULT_DASHBOARD_PREFS },
       });
     },
     [persist],
@@ -165,6 +201,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       petAvatarUrl: p.petAvatarUrl,
       travelModeEnabled: p.travelModeEnabled,
       activeTripId: p.activeTripId,
+      dashboardPrefs: p.dashboardPrefs,
       setProfile,
       completeOnboarding,
     };
