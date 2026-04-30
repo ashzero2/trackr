@@ -169,6 +169,27 @@ export function computeVelocityInsight(
   return { projectedCents, vsLastMonthPct };
 }
 
+/** Group expenses by calendar month for multi-month range views. */
+export function bucketByMonth(
+  txs: TransactionWithCategory[],
+  months: { year: number; month: number }[],
+): { values: number[]; labels: string[] } {
+  const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const values: number[] = Array(months.length).fill(0);
+  const labels: string[] = months.map((m) => MONTH_ABBR[m.month - 1]);
+
+  for (const t of txs) {
+    if (t.type !== 'expense') continue;
+    const d = new Date(t.occurredAt);
+    const tYear = d.getUTCFullYear();
+    const tMonth = d.getUTCMonth() + 1;
+    const idx = months.findIndex((m) => m.year === tYear && m.month === tMonth);
+    if (idx >= 0) values[idx] += t.amountCents;
+  }
+
+  return { values, labels };
+}
+
 export function peakDayLabel(values: number[], labels: string[]): string | undefined {
   if (values.length === 0) return undefined;
   let maxI = 0;

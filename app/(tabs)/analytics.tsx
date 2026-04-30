@@ -14,6 +14,7 @@ import { useDatabase } from '@/contexts/database-context';
 import { useUserProfile } from '@/contexts/user-profile-context';
 import { bodyFont, headlineFont, labelFont } from '@/constants/typography';
 import {
+  bucketByMonth,
   bucketLast7LocalDays,
   bucketUtcMonthDailyExpenses,
   compressMonthDailyToWeekBars,
@@ -34,7 +35,7 @@ export default function AnalyticsScreen() {
   const [year, setYear] = useState(startYm.year);
   const [month, setMonth] = useState(startYm.month);
   const [monthPickerOpen, setMonthPickerOpen] = useState(false);
-  const [mode, setMode] = useState<'week' | 'month'>('month');
+  const [mode, setMode] = useState<'week' | 'month' | '3months' | 'year'>('month');
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [budgetList, setBudgetList] = useState<Budget[]>([]);
@@ -84,7 +85,7 @@ export default function AnalyticsScreen() {
       setChartValues(values.length ? values : [0]);
       setChartLabels(labels.length ? labels : ['—']);
       setPeak(peakDayLabel(values, labels));
-    } else {
+    } else if (mode === 'week') {
       const start = new Date();
       start.setDate(start.getDate() - 6);
       start.setHours(0, 0, 0, 0);
@@ -96,7 +97,38 @@ export default function AnalyticsScreen() {
       setChartValues(values.length ? values : [0]);
       setChartLabels(labels);
       setPeak(peakDayLabel(values, labels));
+    } else if (mode === '3months') {
+      // Compute 3-month range ending at the selected month
+      const months: { year: number; month: number }[] = [];
+      for (let offset = -2; offset <= 0; offset++) {
+        let mVal = m + offset;
+        let yVal = y;
+        if (mVal < 1) { mVal += 12; yVal -= 1; }
+        months.push({ year: yVal, month: mVal });
+      }
+      const rangeStart = monthRangeUtc(months[0].year, months[0].month).start;
+      const rangeEnd = monthRangeUtc(months[months.length - 1].year, months[months.length - 1].month).end;
+      const txs = await transactions.listExpensesBetween(rangeStart, rangeEnd);
+      const { values, labels } = bucketByMonth(txs, months);
+      setChartValues(values.length ? values : [0]);
+      setChartLabels(labels.length ? labels : ['—']);
+      setPeak(peakDayLabel(values, labels));
+    } else if (mode === 'year') {
+      // Compute 12-month range for the selected year
+      const months: { year: number; month: number }[] = [];
+      for (let mIdx = 1; mIdx <= 12; mIdx++) {
+        months.push({ year: y, month: mIdx });
+      }
+      const rangeStart = monthRangeUtc(y, 1).start;
+      const rangeEnd = monthRangeUtc(y, 12).end;
+      const txs = await transactions.listExpensesBetween(rangeStart, rangeEnd);
+      const { values, labels } = bucketByMonth(txs, months);
+      setChartValues(values.length ? values : [0]);
+      setChartLabels(labels.length ? labels : ['—']);
+      setPeak(peakDayLabel(values, labels));
     }
+
+    setSelectedPoint(null);
 
     setInsight(computeMonthInsight(sc, s.totalExpenseCents));
   }, [transactions, budgets, categories, trips, mode, year, month]);
@@ -135,8 +167,10 @@ export default function AnalyticsScreen() {
   const trendSubtitle = useMemo(() => {
     if (!summary) return '';
     if (mode === 'week') return 'Last 7 days (local), expenses only';
+    if (mode === '3months') return 'Last 3 months, expenses by month';
+    if (mode === 'year') return `${year} by month, expenses only`;
     return 'This month by week bucket (UTC month), expenses only';
-  }, [summary, mode]);
+  }, [summary, mode, year]);
 
   if (error) {
     return (
@@ -178,37 +212,50 @@ export default function AnalyticsScreen() {
       <View style={styles.headRow}>
         <View>
           <Text style={[styles.kicker, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-            {mode === 'month' ? 'Monthly overview' : 'Weekly overview'}
+            {mode === 'week' ? 'Weekly overview' : mode === 'month' ? 'Monthly overview' : mode === '3months' ? '3-month overview' : 'Yearly overview'}
           </Text>
           <Text style={[styles.bigTotal, { color: colors.primary, fontFamily: headlineFont }]}>
             {summary ? format(summary.totalExpenseCents) : '…'}
           </Text>
         </View>
-        <View style={[styles.segment, { backgroundColor: colors.surfaceContainerLow }]}>
-          {(['week', 'month'] as const).map((m) => (
-            <Pressable
-              key={m}
-              accessibilityRole="button"
-              accessibilityState={{ selected: mode === m }}
-              accessibilityLabel={m === 'week' ? 'Weekly overview' : 'Monthly overview'}
-              onPress={() => setMode(m)}
-              style={[
-                styles.segChip,
-                mode === m && { backgroundColor: colors.surfaceContainerLowest },
-              ]}>
-              <Text
-                style={{
-                  fontFamily: labelFont,
-                  fontWeight: '600',
-                  fontSize: 13,
-                  color: mode === m ? colors.primary : colors.onSurfaceVariant,
-                }}>
-                {m === 'week' ? 'Week' : 'Month'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
       </View>
+
+      {/* Range selector chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.rangeChipScroll}
+        style={{ marginHorizontal: -24, marginBottom: 12 }}>
+        {([
+          { key: 'week', label: 'Week' },
+          { key: 'month', label: 'Month' },
+          { key: '3months', label: '3M' },
+          { key: 'year', label: 'Year' },
+        ] as const).map((item) => (
+          <Pressable
+            key={item.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: mode === item.key }}
+            accessibilityLabel={`${item.label} range`}
+            onPress={() => setMode(item.key)}
+            style={[
+              styles.rangeChip,
+              {
+                backgroundColor: mode === item.key ? colors.primaryContainer : colors.surfaceContainerHigh,
+              },
+            ]}>
+            <Text
+              style={{
+                fontFamily: labelFont,
+                fontWeight: '700',
+                fontSize: 13,
+                color: mode === item.key ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+              }}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       <Pressable onPress={() => setSelectedPoint(null)} style={{ position: 'relative' }}>
         <SpendingTrendChart
@@ -469,6 +516,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
     paddingVertical: 8,
+    borderRadius: 999,
+  },
+  rangeChipScroll: {
+    paddingHorizontal: 24,
+    gap: 10,
+    alignItems: 'center',
+  },
+  rangeChip: {
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 999,
   },
   adjustLimitsHit: {
