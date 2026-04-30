@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MIN_TOUCH_TARGET } from '@/constants/accessibility';
 import { headlineFont } from '@/constants/typography';
@@ -38,7 +38,15 @@ export function AppHeader({ title, right }: AppHeaderProps) {
     setAvatarFailed(false);
   }, [petAvatarUrl]);
 
-  const greeting = useMemo(() => greetingForSession(displayName), [displayName]);
+  // Recalculate greeting when app becomes active (handles morning→afternoon transitions)
+  const [greetingKey, setGreetingKey] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setGreetingKey((k) => k + 1);
+    });
+    return () => sub.remove();
+  }, []);
+  const greeting = useMemo(() => greetingForSession(displayName), [displayName, greetingKey]);
   const initials = useMemo(() => initialsFromName(displayName), [displayName]);
   const showPet = Boolean(petAvatarUrl) && !avatarFailed;
 
