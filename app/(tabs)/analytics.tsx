@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { ChartTooltip } from '@/components/chart-tooltip';
 import { EmptyState } from '@/components/empty-state';
 import { SkeletonCard } from '@/components/skeleton';
 import { SpendingTrendChart } from '@/components/spending-trend-chart';
@@ -50,6 +51,11 @@ export default function AnalyticsScreen() {
     normalExpenseBaseCents: number;
   } | null>(null);
   const [tripYearBars, setTripYearBars] = useState<{ tripId: string; name: string; totalExpenseCents: number }[]>([]);
+  const [selectedPoint, setSelectedPoint] = useState<{
+    index: number;
+    value: number;
+    label: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!transactions || !budgets || !categories || !trips) return;
@@ -204,12 +210,26 @@ export default function AnalyticsScreen() {
         </View>
       </View>
 
-      <SpendingTrendChart
-        values={chartValues}
-        labels={chartLabels}
-        subtitle={trendSubtitle}
-        peakLabel={peak}
-      />
+      <Pressable onPress={() => setSelectedPoint(null)} style={{ position: 'relative' }}>
+        <SpendingTrendChart
+          values={chartValues}
+          labels={chartLabels}
+          subtitle={trendSubtitle}
+          peakLabel={peak}
+          selectedIndex={selectedPoint?.index ?? null}
+          onPointPress={(index, value, label) => {
+            setSelectedPoint((prev) =>
+              prev?.index === index ? null : { index, value, label },
+            );
+          }}
+        />
+      </Pressable>
+      {selectedPoint ? (
+        <ChartTooltip
+          label={selectedPoint.label}
+          formattedValue={format(selectedPoint.value)}
+        />
+      ) : null}
 
       {travelModeEnabled && tripVsNormal ? (
         <View style={[styles.tripCard, { backgroundColor: colors.surfaceContainerLowest, marginTop: 16 }]}>

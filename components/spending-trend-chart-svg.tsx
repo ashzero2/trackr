@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Svg, { Polyline } from 'react-native-svg';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Svg, { Circle, Polyline, Rect } from 'react-native-svg';
 
 import { useAppColors } from '@/contexts/color-scheme-context';
 import { bodyFont, labelFont } from '@/constants/typography';
@@ -11,6 +11,8 @@ export type SpendingTrendChartProps = {
   height?: number;
   subtitle?: string;
   peakLabel?: string;
+  onPointPress?: (index: number, value: number, label: string, x: number) => void;
+  selectedIndex?: number | null;
 };
 
 function buildPolylinePoints(values: number[], w: number, h: number): string {
@@ -35,6 +37,8 @@ function SpendingTrendChartSvgBase({
   height = 120,
   subtitle,
   peakLabel,
+  onPointPress,
+  selectedIndex,
 }: SpendingTrendChartProps) {
   const { colors } = useAppColors();
   const { width: screenW } = useWindowDimensions();
@@ -57,6 +61,19 @@ function SpendingTrendChartSvgBase({
     const peakInfo = labels[maxIdx] ? `Peak: ${labels[maxIdx]} at ${max.toLocaleString()}.` : '';
     return `Spending trend chart with ${values.length} data points. ${peakInfo} Total: ${total.toLocaleString()}. Data: ${pairs.join(', ')}.`;
   }, [values, labels]);
+
+  // Pre-compute data point positions for touch targets and highlight
+  const pointPositions = useMemo(() => {
+    if (values.length === 0) return [];
+    const max = Math.max(...values, 1);
+    const padY = height * 0.12;
+    const innerH = height - padY * 2;
+    const n = values.length;
+    return values.map((v, i) => ({
+      x: (i / Math.max(n - 1, 1)) * width,
+      y: height - padY - (v / max) * innerH,
+    }));
+  }, [values, width, height]);
 
   return (
     <View
@@ -93,6 +110,31 @@ function SpendingTrendChartSvgBase({
           strokeWidth={3}
         />
         <Polyline points={ptsMain} fill="none" stroke={colors.primary} strokeWidth={4} />
+        {/* Selected point highlight */}
+        {selectedIndex != null && pointPositions[selectedIndex] ? (
+          <Circle
+            cx={pointPositions[selectedIndex].x}
+            cy={pointPositions[selectedIndex].y}
+            r={7}
+            fill={colors.primary}
+            stroke={colors.surfaceContainerLowest}
+            strokeWidth={3}
+          />
+        ) : null}
+        {/* Invisible touch targets for each data point */}
+        {onPointPress
+          ? pointPositions.map((pt, i) => (
+              <Rect
+                key={i}
+                x={pt.x - 20}
+                y={0}
+                width={40}
+                height={height}
+                fill="transparent"
+                onPress={() => onPointPress(i, values[i], labels[i] ?? '', pt.x)}
+              />
+            ))
+          : null}
       </Svg>
       <View style={styles.labels}>
         {labels.map((lb) => (
@@ -111,6 +153,7 @@ function arePropsEqual(prev: SpendingTrendChartProps, next: SpendingTrendChartPr
   if (prev.height !== next.height) return false;
   if (prev.subtitle !== next.subtitle) return false;
   if (prev.peakLabel !== next.peakLabel) return false;
+  if (prev.selectedIndex !== next.selectedIndex) return false;
   if (prev.values.length !== next.values.length) return false;
   if (prev.labels.length !== next.labels.length) return false;
   for (let i = 0; i < prev.values.length; i++) {
@@ -119,6 +162,7 @@ function arePropsEqual(prev: SpendingTrendChartProps, next: SpendingTrendChartPr
   for (let i = 0; i < prev.labels.length; i++) {
     if (prev.labels[i] !== next.labels[i]) return false;
   }
+  // onPointPress is a callback — skip identity check to avoid unnecessary re-renders
   return true;
 }
 
