@@ -34,7 +34,40 @@ export async function checkBudgetAlerts(
 
   for (const budget of budgetRows) {
     if (!budget.categoryId || budget.limitCents <= 0) continue;
-    const spent = spentMap.get(budget.categoryId)?.spentCents ?? 0;
+
+    let spent: number;
+    const period = budget.period ?? 'monthly';
+
+    if (period === 'weekly') {
+      // Compute current week's spending (Mon–Sun)
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() + mondayOffset);
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 7);
+      const weekTxs = await deps.transactions.listExpensesBetween(
+        weekStart.toISOString(),
+        weekEnd.toISOString(),
+      );
+      spent = weekTxs
+        .filter((t) => t.categoryId === budget.categoryId)
+        .reduce((sum, t) => sum + t.amountCents, 0);
+    } else if (period === 'yearly') {
+      // Compute year-to-date spending
+      const yearStart = `${year}-01-01T00:00:00.000Z`;
+      const yearEnd = `${year + 1}-01-01T00:00:00.000Z`;
+      const yearTxs = await deps.transactions.listExpensesBetween(yearStart, yearEnd);
+      spent = yearTxs
+        .filter((t) => t.categoryId === budget.categoryId)
+        .reduce((sum, t) => sum + t.amountCents, 0);
+    } else {
+      // monthly — use pre-fetched data
+      spent = spentMap.get(budget.categoryId)?.spentCents ?? 0;
+    }
+
     const pct = spent / budget.limitCents;
     const catName = spentMap.get(budget.categoryId)?.categoryName ?? 'Budget';
     const monthKey = `${year}-${String(month).padStart(2, '0')}`;

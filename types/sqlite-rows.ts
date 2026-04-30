@@ -65,6 +65,7 @@ export type BudgetSqlRow = {
   year: number;
   month: number;
   limit_cents: number;
+  period: string;
   created_at: string;
 };
 

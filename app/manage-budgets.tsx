@@ -23,7 +23,7 @@ import { lightImpact } from '@/lib/haptics';
 import { monthName, utcCalendarMonthNow } from '@/lib/dates';
 import { useFormatMoney } from '@/hooks/use-format-money';
 import { materialIconNameForCategory } from '@/lib/category-icons';
-import type { Budget, Category } from '@/types/finance';
+import type { Budget, BudgetPeriod, Category } from '@/types/finance';
 
 type EditTarget = { category: Category; budget: Budget | null };
 
@@ -237,14 +237,17 @@ function BudgetLimitModal({
   const { currencyCode } = useFormatMoney();
   const { budgets } = useRepositories();
   const [amountText, setAmountText] = useState('');
+  const [selectedPeriod, setSelectedPeriod] = useState<BudgetPeriod>('monthly');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!visible || !target) return;
     if (target.budget) {
       setAmountText((target.budget.limitCents / 100).toFixed(2));
+      setSelectedPeriod(target.budget.period ?? 'monthly');
     } else {
       setAmountText('');
+      setSelectedPeriod('monthly');
     }
   }, [visible, target]);
 
@@ -265,6 +268,7 @@ function BudgetLimitModal({
         year,
         month,
         limitCents: Math.round(parsed * 100),
+        period: selectedPeriod,
       });
       lightImpact();
       onClose();
@@ -303,8 +307,35 @@ function BudgetLimitModal({
             {target.category.name}
           </Text>
           <Text style={[styles.sub, { color: colors.onSurfaceVariant, fontFamily: bodyFont }]}>
-            {monthName(month)} {year} · monthly limit ({currencyCode})
+            {monthName(month)} {year} · {selectedPeriod} limit ({currencyCode})
           </Text>
+
+          {/* Period selector */}
+          <View style={[styles.periodSegment, { backgroundColor: colors.surfaceContainerHighest }]}>
+            {(['weekly', 'monthly', 'yearly'] as const).map((p) => {
+              const active = selectedPeriod === p;
+              return (
+                <Pressable
+                  key={p}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${p} budget period`}
+                  onPress={() => setSelectedPeriod(p)}
+                  style={[styles.periodChip, active && { backgroundColor: colors.primary }]}>
+                  <Text
+                    style={{
+                      fontFamily: labelFont,
+                      fontSize: 12,
+                      fontWeight: '700',
+                      color: active ? colors.onPrimary : colors.onSurfaceVariant,
+                    }}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <TextInput
             value={amountText}
             onChangeText={setAmountText}
@@ -451,6 +482,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
     marginBottom: 14,
+  },
+  periodSegment: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 4,
+    gap: 3,
+    marginBottom: 14,
+  },
+  periodChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 11,
+    alignItems: 'center',
   },
   input: {
     borderRadius: 14,

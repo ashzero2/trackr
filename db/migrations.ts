@@ -42,7 +42,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_budget_category_month
   ON budgets(category_id, year, month) WHERE category_id IS NOT NULL;
 `;
 
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 const MIGRATION_V3_CREATE_TRIPS = `
 CREATE TABLE IF NOT EXISTS trips (
@@ -154,5 +154,12 @@ export async function runMigrations(db: SQLiteDatabase): Promise<void> {
       await db.execAsync(MIGRATION_V4_RECURRING);
     });
     version = 4;
+  }
+
+  if (version < 5) {
+    await runMigrationStep(db, 5, async () => {
+      await db.execAsync(`ALTER TABLE budgets ADD COLUMN period TEXT NOT NULL DEFAULT 'monthly'`);
+    });
+    version = 5;
   }
 }

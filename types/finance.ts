@@ -69,12 +69,15 @@ export type TransactionWithCategory = Transaction & {
   categoryIconKey: string;
 };
 
+export type BudgetPeriod = 'weekly' | 'monthly' | 'yearly';
+
 export type Budget = {
   id: string;
   categoryId: string | null;
   year: number;
   month: number;
   limitCents: number;
+  period: BudgetPeriod;
   createdAt: string;
 };
 
