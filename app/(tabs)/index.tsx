@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
@@ -47,6 +48,7 @@ export default function DashboardScreen() {
   const { displayName } = useUserProfile();
   const { ready, error, transactions, budgets, dataVersion } = useDatabase();
   const lastSeenVersion = useRef(-1);
+  const openRowRef = useRef<SwipeableMethods>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<MonthSummary | null>(null);
   const [prevSummary, setPrevSummary] = useState<MonthSummary | null>(null);
@@ -372,6 +374,7 @@ export default function DashboardScreen() {
                   transaction={t}
                   subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
                   onDelete={onDelete}
+                  openRowRef={openRowRef}
                 />
               ))}
             </View>

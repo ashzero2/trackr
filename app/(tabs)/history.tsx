@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import {
   ActivityIndicator,
   Modal,
@@ -56,6 +57,7 @@ export default function HistoryScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const openRowRef = useRef<SwipeableMethods>(null);
   const PAGE_SIZE = 50;
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -437,6 +439,7 @@ export default function HistoryScreen() {
                       transaction={t}
                       subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
                       onDelete={onDelete}
+                      openRowRef={openRowRef}
                     />
                   ))}
                 </View>

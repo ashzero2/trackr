@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { useRef } from 'react';
+import React, { useRef } from 'react';
 import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -16,9 +16,12 @@ type Props = {
   subtitle: string;
   dense?: boolean;
   onDelete: (id: string) => void;
+  /** Shared ref that tracks the currently open swipeable row.
+   *  When a row opens, it closes the previously open row automatically. */
+  openRowRef?: React.MutableRefObject<SwipeableMethods | null>;
 };
 
-export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete }: Props) {
+export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete, openRowRef }: Props) {
   const { colors } = useAppColors();
   const swipeRef = useRef<SwipeableMethods>(null);
 
@@ -93,12 +96,23 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
     );
   }
 
+  const handleSwipeOpen = () => {
+    // Close any previously open row before opening this one
+    if (openRowRef?.current && openRowRef.current !== swipeRef.current) {
+      openRowRef.current.close();
+    }
+    if (openRowRef) {
+      openRowRef.current = swipeRef.current;
+    }
+  };
+
   const swipeable = (
     <ReanimatedSwipeable
       ref={swipeRef}
       friction={2}
       overshootRight={false}
       overshootLeft={false}
+      onSwipeableWillOpen={handleSwipeOpen}
       renderRightActions={renderRightActions}
       renderLeftActions={renderLeftActions}>
       <TransactionRow
