@@ -37,12 +37,17 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
 
   function handleEdit() {
     close();
-    router.push({ pathname: '/add-transaction', params: { id: transaction.id } });
+    // Small delay to let the swipeable close animation finish before navigating
+    setTimeout(() => {
+      router.push({ pathname: '/add-transaction', params: { id: transaction.id } });
+    }, 50);
   }
 
   function handleDuplicate() {
     close();
-    router.push({ pathname: '/add-transaction', params: { duplicate: transaction.id } });
+    setTimeout(() => {
+      router.push({ pathname: '/add-transaction', params: { duplicate: transaction.id } });
+    }, 50);
   }
 
   function handleLongPress() {

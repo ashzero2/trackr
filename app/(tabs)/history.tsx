@@ -119,12 +119,16 @@ export default function HistoryScreen() {
     (id: string) => {
       const txn = rows.find((r) => r.id === id);
       if (!txn) return;
+      // If there's already a pending delete, commit it immediately before staging the new one
+      if (pendingDelete && transactions) {
+        void transactions.delete(pendingDelete.id);
+      }
       // Optimistically remove from UI
       setRows((prev) => prev.filter((r) => r.id !== id));
       // Stage for delayed deletion
       setPendingDelete({ id, transaction: txn });
     },
-    [rows],
+    [rows, pendingDelete, transactions],
   );
 
   const commitDelete = useCallback(async () => {

@@ -87,7 +87,7 @@ export function UndoSnackbar({ message, onExpire, onUndo, id }: UndoSnackbarProp
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 100, // above tab bar
+    bottom: 160, // above tab bar + FAB
     left: 16,
     right: 16,
     borderRadius: 14,
