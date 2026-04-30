@@ -56,6 +56,7 @@ export default function SettingsScreen() {
   const [nameModalOpen, setNameModalOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [geminiHasKey, setGeminiHasKey] = useState(false);
+  const [settingsQuery, setSettingsQuery] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -192,6 +193,27 @@ export default function SettingsScreen() {
     );
   }
 
+  // ── Settings search helpers ─────────────────────────────────────────
+  const SECTION_DATA: { title: string; keywords: string[] }[] = [
+    { title: 'Profile', keywords: ['display name', 'primary currency', 'travel mode'] },
+    { title: 'Appearance', keywords: ['color mode', 'light', 'dark', 'system', 'theme', 'palette'] },
+    { title: 'Customization', keywords: ['notifications', 'recurring transactions', 'custom categories', 'custom budgets', 'budget alerts', 'subscriptions', 'bills'] },
+    { title: 'Security', keywords: ['app lock', 'pin', 'biometric', 'face id', 'fingerprint', 'lock now'] },
+    { title: 'Travel', keywords: ['travel mode', 'manage trips', 'trip summaries', 'repair'] },
+    { title: 'Integrations', keywords: ['exbot', 'gemini', 'ai', 'api key'] },
+    { title: 'Data & backup', keywords: ['export', 'csv', 'json', 'import', 'backup'] },
+    { title: 'Danger zone', keywords: ['clear', 'delete', 'wipe', 'data'] },
+    { title: 'About', keywords: ['version', 'trackr', 'info'] },
+  ];
+
+  const matchesSection = (sectionTitle: string, q: string): boolean => {
+    if (!q.trim()) return true;
+    const s = q.toLowerCase();
+    if (sectionTitle.toLowerCase().includes(s)) return true;
+    const section = SECTION_DATA.find((d) => d.title === sectionTitle);
+    return section?.keywords.some((kw) => kw.includes(s)) ?? false;
+  };
+
   if (!ready || !transactions || !db || !categories || !trips) {
     return (
       <ScreenScaffold subtitle="Configure your financial workspace">
@@ -206,8 +228,24 @@ export default function SettingsScreen() {
     <ScreenScaffold subtitle="Configure your financial workspace">
       <Text style={[styles.pageTitle, { color: colors.primary, fontFamily: headlineFont }]}>Settings</Text>
 
+      {/* ── Search ────────────────────────────────────────────────── */}
+      <TextInput
+        value={settingsQuery}
+        onChangeText={setSettingsQuery}
+        placeholder="Search settings…"
+        placeholderTextColor={colors.onSurfaceVariant}
+        style={[
+          styles.settingsSearch,
+          {
+            color: colors.onSurface,
+            backgroundColor: colors.surfaceContainerLowest,
+            fontFamily: bodyFont,
+          },
+        ]}
+      />
+
       {/* ── Profile ──────────────────────────────────────────────── */}
-      <SettingsSection title="Profile" icon="person">
+      {matchesSection('Profile', settingsQuery) ? <SettingsSection title="Profile" icon="person" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <PressableRow
             icon="person"
@@ -237,15 +275,15 @@ export default function SettingsScreen() {
             }
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Appearance ───────────────────────────────────────────── */}
-      <SettingsSection title="Appearance" icon="palette">
+      {matchesSection('Appearance', settingsQuery) ? <SettingsSection title="Appearance" icon="palette" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <ThemeRow />
           <ThemeColorPicker />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       <Modal visible={nameModalOpen} transparent animationType="fade" accessibilityViewIsModal>
         <Pressable style={styles.nameBackdrop} onPress={() => setNameModalOpen(false)}>
@@ -295,7 +333,7 @@ export default function SettingsScreen() {
       </Modal>
 
       {/* ── Customization (moved up — most-used settings) ────────── */}
-      <SettingsSection title="Customization" icon="tune">
+      {matchesSection('Customization', settingsQuery) ? <SettingsSection title="Customization" icon="tune" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <PressableRow
             icon="notifications"
@@ -322,10 +360,10 @@ export default function SettingsScreen() {
             onPress={() => router.push('/manage-budgets')}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Security ─────────────────────────────────────────────── */}
-      <SettingsSection title="Security" icon="lock">
+      {matchesSection('Security', settingsQuery) ? <SettingsSection title="Security" icon="lock" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <PressableRow
             icon={lockEnabled ? 'lock' : 'lock-open'}
@@ -370,10 +408,10 @@ export default function SettingsScreen() {
             </>
           ) : null}
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Travel ───────────────────────────────────────────────── */}
-      <SettingsSection title="Travel" icon="flight">
+      {matchesSection('Travel', settingsQuery) ? <SettingsSection title="Travel" icon="flight" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <Row
             icon="flight"
@@ -417,10 +455,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Integrations ─────────────────────────────────────────── */}
-      <SettingsSection title="Integrations" icon="auto-awesome">
+      {matchesSection('Integrations', settingsQuery) ? <SettingsSection title="Integrations" icon="auto-awesome" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <PressableRow
             icon="auto-awesome"
@@ -429,10 +467,10 @@ export default function SettingsScreen() {
             onPress={() => router.push('/exbot-settings')}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Data & backup ────────────────────────────────────────── */}
-      <SettingsSection title="Data & backup" icon="backup">
+      {matchesSection('Data & backup', settingsQuery) ? <SettingsSection title="Data & backup" icon="backup" defaultExpanded={!!settingsQuery.trim()}>
         <Card divided>
           <PressableRow
             icon="import-export"
@@ -456,10 +494,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Danger zone ──────────────────────────────────────────── */}
-      <SettingsSection title="Danger zone" icon="warning" defaultExpanded={false}>
+      {matchesSection('Danger zone', settingsQuery) ? <SettingsSection title="Danger zone" icon="warning" defaultExpanded={settingsQuery.trim() ? true : false}>
         <View style={[styles.dangerBanner, { backgroundColor: colors.errorContainer }]}>
           <MaterialIcons name="warning" size={20} color={colors.error} />
           <Text style={[styles.dangerBannerText, { color: colors.onErrorContainer, fontFamily: bodyFont }]}>
@@ -476,10 +514,10 @@ export default function SettingsScreen() {
             disabled={busy}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── About ────────────────────────────────────────────────── */}
-      <SettingsSection title="About" icon="info-outline" defaultExpanded={false}>
+      {matchesSection('About', settingsQuery) ? <SettingsSection title="About" icon="info-outline" defaultExpanded={settingsQuery.trim() ? true : false}>
         <Card>
           <Row
             icon="info-outline"
@@ -489,7 +527,7 @@ export default function SettingsScreen() {
             right={null}
           />
         </Card>
-      </SettingsSection>
+      </SettingsSection> : null}
 
       {/* ── Delete confirmation modal ────────────────────────────── */}
       <Modal visible={deleteModalOpen} transparent animationType="fade" accessibilityViewIsModal>
@@ -914,6 +952,13 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '800',
     marginBottom: 20,
+  },
+  settingsSearch: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginBottom: 16,
   },
   section: {
     marginBottom: 22,
