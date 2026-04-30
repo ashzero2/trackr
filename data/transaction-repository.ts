@@ -79,6 +79,26 @@ export class TransactionRepository {
     return rows.map(mapTxJoin);
   }
 
+  async listByMonthWithoutTripPaginated(
+    year: number,
+    month: number,
+    limit: number,
+    offset: number,
+  ): Promise<TransactionWithCategory[]> {
+    const { start, end } = monthRangeUtc(year, month);
+    const rows = await this.db.getAllAsync<TransactionWithCategorySqlRow>(
+      `SELECT ${TX_SELECT},
+              c.name AS category_name, c.icon_key AS category_icon_key
+       FROM transactions t
+       JOIN categories c ON c.id = t.category_id
+       WHERE t.occurred_at >= ? AND t.occurred_at < ? AND t.trip_id IS NULL
+       ORDER BY t.occurred_at DESC
+       LIMIT ? OFFSET ?`,
+      [start, end, limit, offset],
+    );
+    return rows.map(mapTxJoin);
+  }
+
   async listByTripAndMonth(tripId: string, year: number, month: number): Promise<TransactionWithCategory[]> {
     const { start, end } = monthRangeUtc(year, month);
     const rows = await this.db.getAllAsync<TransactionWithCategorySqlRow>(

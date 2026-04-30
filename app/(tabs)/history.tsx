@@ -56,6 +56,10 @@ export default function HistoryScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Debounce search query (300ms) ───────────────────────────────────
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,13 +71,29 @@ export default function HistoryScreen() {
 
   const load = useCallback(async () => {
     if (!transactions || !trips) return;
+    setPage(0);
+    setHasMore(true);
     const [otherList, tTrips] = await Promise.all([
-      transactions.listByMonthWithoutTrip(year, month),
+      transactions.listByMonthWithoutTripPaginated(year, month, PAGE_SIZE, 0),
       trips.listTripsWithActivityInMonth(year, month),
     ]);
     setRows(otherList);
     setTripRows(tTrips);
+    setHasMore(otherList.length === PAGE_SIZE);
   }, [transactions, trips, year, month]);
+
+  const loadMore = useCallback(async () => {
+    if (!transactions || !hasMore || loadingMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const moreRows = await transactions.listByMonthWithoutTripPaginated(
+      year, month, PAGE_SIZE, nextPage * PAGE_SIZE,
+    );
+    setRows((prev) => [...prev, ...moreRows]);
+    setPage(nextPage);
+    setHasMore(moreRows.length === PAGE_SIZE);
+    setLoadingMore(false);
+  }, [transactions, hasMore, loadingMore, page, year, month]);
 
   useFocusEffect(
     useCallback(() => {
@@ -355,7 +375,10 @@ export default function HistoryScreen() {
         </ScrollView>
       ) : null}
 
-      <View style={{ gap: 24, marginTop: 8 }}>
+      <View
+        style={{ gap: 24, marginTop: 8 }}
+        onLayout={() => {}}
+      >
         {segment === 'trips' ? (
           filteredTrips.length === 0 ? (
             <EmptyState
@@ -395,29 +418,46 @@ export default function HistoryScreen() {
             subtitle={query ? 'Try a different search term or clear filters' : 'Tap + to log a transaction'}
           />
         ) : (
-          grouped.map(({ dayKey, items }) => (
-            <View key={dayKey}>
-              <View style={styles.dayHeader}>
-                <Text style={[styles.dayLabel, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                  {formatDaySectionTitle(dayKey, todayKey, yesterdayKey)}
-                </Text>
-                <Text style={[styles.dayTotal, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                  {format(dayExpenseTotal(items))}
-                </Text>
+          <>
+            {grouped.map(({ dayKey, items }) => (
+              <View key={dayKey}>
+                <View style={styles.dayHeader}>
+                  <Text style={[styles.dayLabel, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                    {formatDaySectionTitle(dayKey, todayKey, yesterdayKey)}
+                  </Text>
+                  <Text style={[styles.dayTotal, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                    {format(dayExpenseTotal(items))}
+                  </Text>
+                </View>
+                <View style={[styles.cardShell, { backgroundColor: colors.surfaceContainerLowest }]}>
+                  {items.map((t) => (
+                    <SwipeableTransactionRow
+                      key={t.id}
+                      dense
+                      transaction={t}
+                      subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
+                      onDelete={onDelete}
+                    />
+                  ))}
+                </View>
               </View>
-              <View style={[styles.cardShell, { backgroundColor: colors.surfaceContainerLowest }]}>
-                {items.map((t) => (
-                  <SwipeableTransactionRow
-                    key={t.id}
-                    dense
-                    transaction={t}
-                    subtitle={`${t.categoryName} · ${new Date(t.occurredAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
-                    onDelete={onDelete}
-                  />
-                ))}
-              </View>
-            </View>
-          ))
+            ))}
+            {hasMore && segment === 'other' && !debouncedQuery && !categoryFilter ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Load more transactions"
+                onPress={() => { void loadMore(); }}
+                style={[styles.loadMoreBtn, { backgroundColor: colors.surfaceContainerHigh }]}>
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={{ fontFamily: labelFont, fontWeight: '700', fontSize: 13, color: colors.primary }}>
+                    Load more
+                  </Text>
+                )}
+              </Pressable>
+            ) : null}
+          </>
         )}
       </View>
 
@@ -680,5 +720,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
     borderWidth: 1,
+  },
+  loadMoreBtn: {
+    alignSelf: 'center',
+    minHeight: MIN_TOUCH_TARGET,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    marginTop: 4,
+    marginBottom: 8,
   },
 });
