@@ -107,6 +107,7 @@ export function SwipeableTransactionRow({ transaction, subtitle, dense, onDelete
         dense={dense}
         onPress={handleEdit}
         onLongPress={handleLongPress}
+        accessibilityHint="Swipe left to delete, swipe right to edit. Long press for more options."
         rowStyle={dense ? undefined : { borderRadius: 0 }}
       />
     </ReanimatedSwipeable>

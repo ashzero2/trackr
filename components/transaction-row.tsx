@@ -19,9 +19,11 @@ type TransactionRowProps = {
   dense?: boolean;
   /** Override the outer row container style (e.g. remove borderRadius when inside a clip wrapper) */
   rowStyle?: ViewStyle;
+  /** Accessibility hint describing available gestures (e.g. swipe actions) */
+  accessibilityHint?: string;
 };
 
-export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense, rowStyle }: TransactionRowProps) {
+export function TransactionRow({ transaction, subtitle, onPress, onLongPress, dense, rowStyle, accessibilityHint }: TransactionRowProps) {
   const { colors } = useAppColors();
   const { format } = useFormatMoney();
   const { currencyCode: profileCurrency } = useUserProfile();
@@ -71,6 +73,7 @@ export function TransactionRow({ transaction, subtitle, onPress, onLongPress, de
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={a11yLabel}
+        accessibilityHint={accessibilityHint}
         onPress={onPress}
         onLongPress={onLongPress}
         delayLongPress={400}
