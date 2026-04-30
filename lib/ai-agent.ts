@@ -37,6 +37,8 @@ export async function runGeminiChatTurn(params: {
       contents: GeminiContent[];
       assistantText: string;
       proposedRows: ParsedImportRow[];
+      /** True if the tool-calling loop hit its iteration limit and the response may be incomplete. */
+      truncated?: boolean;
     }
   | { ok: false; error: string }
 > {
@@ -106,8 +108,21 @@ export async function runGeminiChatTurn(params: {
     contents.push({ role: 'user', parts: responseParts });
   }
 
+  // Iteration limit reached — return partial result with truncation flag
+  // instead of discarding everything as an error.
+  const lastModelContent = contents.findLast((c) => c.role === 'model');
+  const partialText =
+    lastModelContent?.parts
+      ?.filter((p: any) => typeof p === 'object' && 'text' in p)
+      .map((p: any) => p.text)
+      .join(' ')
+      .trim() || 'I ran out of steps processing your request. Try a simpler question.';
+
   return {
-    ok: false,
-    error: 'Too many tool rounds. Try a simpler question.',
+    ok: true,
+    contents,
+    assistantText: partialText,
+    proposedRows,
+    truncated: true,
   };
 }
