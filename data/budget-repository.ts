@@ -103,4 +103,44 @@ export class BudgetRepository {
     );
     return rows.map(mapRow);
   }
+
+  /**
+   * Return the last N months' budget limit and actual spending for a category.
+   * Useful for showing budget history/trend per category.
+   */
+  async listHistoryForCategory(
+    categoryId: string,
+    count: number,
+  ): Promise<{ year: number; month: number; limitCents: number; spentCents: number }[]> {
+    const now = new Date();
+    const results: { year: number; month: number; limitCents: number; spentCents: number }[] = [];
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getUTCFullYear(), now.getUTCMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const budgetRow = await this.db.getFirstAsync<{ limit_cents: number }>(
+        `SELECT limit_cents FROM budgets WHERE category_id = ? AND year = ? AND month = ?`,
+        [categoryId, y, m],
+      );
+      const spentRow = await this.db.getFirstAsync<{ s: number | null }>(
+        `SELECT SUM(t.amount_cents) AS s FROM transactions t
+         WHERE t.category_id = ? AND t.type = 'expense'
+         AND t.occurred_at >= ? AND t.occurred_at < ?`,
+        [
+          categoryId,
+          `${y}-${String(m).padStart(2, '0')}-01T00:00:00.000Z`,
+          m === 12
+            ? `${y + 1}-01-01T00:00:00.000Z`
+            : `${y}-${String(m + 1).padStart(2, '0')}-01T00:00:00.000Z`,
+        ],
+      );
+      results.push({
+        year: y,
+        month: m,
+        limitCents: budgetRow?.limit_cents ?? 0,
+        spentCents: Math.round(Number(spentRow?.s ?? 0)),
+      });
+    }
+    return results;
+  }
 }

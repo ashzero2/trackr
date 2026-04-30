@@ -26,6 +26,7 @@ import { materialIconNameForCategory } from '@/lib/category-icons';
 import type { Budget, BudgetPeriod, Category } from '@/types/finance';
 
 type EditTarget = { category: Category; budget: Budget | null };
+type BudgetHistoryEntry = { year: number; month: number; limitCents: number; spentCents: number };
 
 const YEAR_OPTIONS = Array.from({ length: 18 }, (_, i) => 2018 + i);
 
@@ -41,6 +42,9 @@ export default function ManageBudgetsScreen() {
   const [yearModal, setYearModal] = useState(false);
   const [edit, setEdit] = useState<EditTarget | null>(null);
   const [spentByCat, setSpentByCat] = useState<Map<string, number>>(new Map());
+  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<BudgetHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const load = useCallback(async () => {
     const [cats, b, sc] = await Promise.all([
@@ -127,50 +131,117 @@ export default function ManageBudgetsScreen() {
         renderItem={({ item: c }) => {
           const b = budgetByCat.get(c.id) ?? null;
           return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${c.name}, ${b ? `limit ${format(b.limitCents)}` : 'no limit'}`}
-              onPress={() => setEdit({ category: c, budget: b })}
-              style={[styles.row, { backgroundColor: colors.surfaceContainerLow }]}>
-              <View style={[styles.iconBox, { backgroundColor: colors.surfaceContainerLowest }]}>
-                <MaterialIcons name={materialIconNameForCategory(c.iconKey)} size={24} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.name, { color: colors.onSurface, fontFamily: bodyFont }]}>{c.name}</Text>
-                {b ? (() => {
-                  const spent = spentByCat.get(c.id) ?? 0;
-                  const limit = b.limitCents;
-                  const pct = limit > 0 ? Math.min(1, spent / limit) : 0;
-                  const over = spent > limit;
-                  return (
-                    <>
-                      <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                        {format(spent)} / {format(limit)}
-                        {over
-                          ? ` · Over by ${format(spent - limit)}`
-                          : ` · ${format(limit - spent)} left`}
-                      </Text>
-                      <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
-                        <View
-                          style={[
-                            styles.progressFill,
-                            {
-                              width: `${Math.round(pct * 100)}%`,
-                              backgroundColor: over ? colors.error : colors.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </>
-                  );
-                })() : (
-                  <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
-                    No limit set · Spent {format(spentByCat.get(c.id) ?? 0)}
+            <View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${c.name}, ${b ? `limit ${format(b.limitCents)}` : 'no limit'}`}
+                onPress={() => setEdit({ category: c, budget: b })}
+                style={[styles.row, { backgroundColor: colors.surfaceContainerLow }]}>
+                <View style={[styles.iconBox, { backgroundColor: colors.surfaceContainerLowest }]}>
+                  <MaterialIcons name={materialIconNameForCategory(c.iconKey)} size={24} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.name, { color: colors.onSurface, fontFamily: bodyFont }]}>{c.name}</Text>
+                  {b ? (() => {
+                    const spent = spentByCat.get(c.id) ?? 0;
+                    const limit = b.limitCents;
+                    const pct = limit > 0 ? Math.min(1, spent / limit) : 0;
+                    const over = spent > limit;
+                    return (
+                      <>
+                        <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                          {format(spent)} / {format(limit)}
+                          {over
+                            ? ` · Over by ${format(spent - limit)}`
+                            : ` · ${format(limit - spent)} left`}
+                        </Text>
+                        <View style={[styles.progressTrack, { backgroundColor: colors.surfaceContainerHighest }]}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              {
+                                width: `${Math.round(pct * 100)}%`,
+                                backgroundColor: over ? colors.error : colors.primary,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </>
+                    );
+                  })() : (
+                    <Text style={[styles.limit, { color: colors.onSurfaceVariant, fontFamily: labelFont }]}>
+                      No limit set · Spent {format(spentByCat.get(c.id) ?? 0)}
+                    </Text>
+                  )}
+                </View>
+                <MaterialIcons name="edit" size={20} color={colors.onPrimaryContainer} />
+              </Pressable>
+              {/* Budget history expandable */}
+              {b && expandedHistory === c.id ? (
+                <View style={[styles.historySection, { backgroundColor: colors.surfaceContainerLow }]}>
+                  <Text style={[styles.historyTitle, { color: colors.primary, fontFamily: labelFont }]}>
+                    PAST 6 MONTHS
                   </Text>
-                )}
-              </View>
-              <MaterialIcons name="edit" size={20} color={colors.onPrimaryContainer} />
-            </Pressable>
+                  {historyLoading ? (
+                    <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12 }}>Loading…</Text>
+                  ) : historyData.length === 0 ? (
+                    <Text style={{ color: colors.onSurfaceVariant, fontFamily: bodyFont, fontSize: 12 }}>No history</Text>
+                  ) : (
+                    historyData.map((h) => {
+                      const pct = h.limitCents > 0 ? Math.min(1, h.spentCents / h.limitCents) : 0;
+                      return (
+                        <View key={`${h.year}-${h.month}`} style={styles.historyRow}>
+                          <Text style={{ fontFamily: labelFont, fontSize: 12, fontWeight: '700', color: colors.onSurfaceVariant, width: 50 }}>
+                            {monthName(h.month).slice(0, 3)} {String(h.year).slice(2)}
+                          </Text>
+                          <View style={[styles.historyBarTrack, { backgroundColor: colors.surfaceContainerHighest, flex: 1 }]}>
+                            <View
+                              style={[
+                                styles.historyBarFill,
+                                {
+                                  width: `${Math.round(pct * 100)}%`,
+                                  backgroundColor: h.spentCents > h.limitCents ? colors.error : colors.primary,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <Text style={{ fontFamily: labelFont, fontSize: 11, fontWeight: '600', color: colors.onSurfaceVariant, width: 65, textAlign: 'right' }}>
+                            {format(h.spentCents)}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              ) : null}
+              {b ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={expandedHistory === c.id ? 'Hide history' : 'Show history'}
+                  onPress={async () => {
+                    if (expandedHistory === c.id) {
+                      setExpandedHistory(null);
+                      setHistoryData([]);
+                    } else {
+                      setExpandedHistory(c.id);
+                      setHistoryLoading(true);
+                      const data = await budgets.listHistoryForCategory(c.id, 6);
+                      setHistoryData(data);
+                      setHistoryLoading(false);
+                    }
+                  }}
+                  style={styles.historyToggle}>
+                  <MaterialIcons
+                    name={expandedHistory === c.id ? 'expand-less' : 'history'}
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={{ fontFamily: labelFont, fontSize: 11, fontWeight: '700', color: colors.primary }}>
+                    {expandedHistory === c.id ? 'Hide' : 'History'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           );
         }}
         ListEmptyComponent={
@@ -532,5 +603,43 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 999,
+  },
+  historySection: {
+    borderRadius: 16,
+    padding: 14,
+    marginTop: -2,
+    marginBottom: 4,
+    gap: 8,
+  },
+  historyTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyBarTrack: {
+    height: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  historyBarFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  historyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: -2,
+    marginBottom: 4,
   },
 });
